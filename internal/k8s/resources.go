@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -46,7 +48,7 @@ func NewResourceOperations(cm *ClusterManager) *ResourceOperations {
 	}
 }
 
-// ListNamespaces lists all namespaces in the current cluster
+// ListNamespaces lists all namespaces in current cluster
 func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName string) ([]ResourceInfo, error) {
 	var client *kubernetes.Clientset
 	var err error
@@ -104,13 +106,58 @@ func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterNa
 			Name:      pod.Name,
 			Namespace: pod.Namespace,
 			Kind:      "Pod",
-			Status:    string(pod.Status.Phase),
+			Status:    getPodStatus(&pod),
 			Age:       pod.CreationTimestamp.String(),
 			Labels:    pod.Labels,
 		})
 	}
 
 	return resources, nil
+}
+
+// getPodStatus calculates a high-level status for a pod, similar to kubectl
+func getPodStatus(pod *corev1.Pod) string {
+	// 1. Check if pod is being deleted
+	if pod.DeletionTimestamp != nil {
+		return "Terminating"
+	}
+
+	// 2. Check failed reason
+	if pod.Status.Reason != "" {
+		return pod.Status.Reason
+	}
+
+	// 3. Check Init Containers
+	for _, containerStatus := range pod.Status.InitContainerStatuses {
+		if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
+			if containerStatus.State.Terminated.Reason != "" {
+				return "Init:" + containerStatus.State.Terminated.Reason
+			}
+			return "Init:Error"
+		}
+		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason != "" {
+			if containerStatus.State.Waiting.Reason != "PodInitializing" {
+				return "Init:" + containerStatus.State.Waiting.Reason
+			}
+		}
+	}
+
+	// 4. Check Containers
+	// Priority: Waiting (CrashLoopBackOff etc.) > Terminated (Error) > Running
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason != "" {
+			return containerStatus.State.Waiting.Reason
+		}
+		if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
+			if containerStatus.State.Terminated.Reason != "" {
+				return containerStatus.State.Terminated.Reason
+			}
+			return "Error"
+		}
+	}
+
+	// 5. If everything looks fine, return the Phase (Running, Pending, Succeeded)
+	return string(pod.Status.Phase)
 }
 
 // ListServices lists services in a namespace
@@ -308,7 +355,7 @@ func (ro *ResourceOperations) listSecrets(ctx context.Context, namespace, cluste
 	return resources, nil
 }
 
-// listNodes lists nodes in the cluster
+// listNodes lists nodes in cluster
 func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string) ([]ResourceInfo, error) {
 	var client *kubernetes.Clientset
 	var err error
@@ -466,4 +513,106 @@ func (ro *ResourceOperations) GetClusterInfo(ctx context.Context, clusterName st
 	}
 
 	return info, nil
+}
+
+// GetPodLogs retrieves logs from a pod
+// GetPodLogs 从 Pod 获取日志
+func (ro *ResourceOperations) GetPodLogs(ctx context.Context, namespace, podName, containerName string, tailLines *int64, previous bool) (string, error) {
+	var client *kubernetes.Clientset
+	var err error
+
+	client, err = ro.clusterManager.GetClient()
+	if err != nil {
+		return "", err
+	}
+
+	// Default tail lines to 100 if not specified
+	// 如果未指定，默认 tail lines 为 100
+	if tailLines == nil {
+		defaultLines := int64(100)
+		tailLines = &defaultLines
+	}
+
+	// Get pod to determine container name if not specified
+	// 如果未指定容器名称，获取 Pod 以确定容器名称
+	if containerName == "" {
+		pod, err := client.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failed to get pod: %w", err)
+		}
+		if len(pod.Spec.Containers) > 0 {
+			containerName = pod.Spec.Containers[0].Name
+		} else {
+			return "", fmt.Errorf("no containers found in pod %s", podName)
+		}
+	}
+
+	// Create log request options
+	// 创建日志请求选项
+	logOptions := &corev1.PodLogOptions{
+		Container: containerName,
+		TailLines: tailLines,
+		Previous:  previous,
+	}
+
+	// Get logs as a stream
+	// 获取日志流
+	req := client.CoreV1().Pods(namespace).GetLogs(podName, logOptions)
+	logStream, err := req.Stream(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get log stream: %w", err)
+	}
+	defer logStream.Close()
+
+	// Read logs with a limit to prevent memory issues
+	// 读取日志并限制大小以防止内存问题
+	const maxBytes = 1 * 1024 * 1024 // 1MB
+	limitedReader := io.LimitReader(logStream, maxBytes)
+	logBytes, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read logs: %w", err)
+	}
+
+	logs := string(logBytes)
+
+	// Check if logs were truncated
+	// 检查日志是否被截断
+	if int64(len(logBytes)) >= maxBytes {
+		logs += "\n\n[Logs truncated: exceeded 1MB limit]"
+	}
+
+	return logs, nil
+}
+
+// CheckRBACPermission checks if the current user has permission to perform an action
+// CheckRBACPermission 检查当前用户是否有权限执行某个操作
+func (ro *ResourceOperations) CheckRBACPermission(ctx context.Context, verb, resource, namespace string) (bool, error) {
+	var client *kubernetes.Clientset
+	var err error
+
+	client, err = ro.clusterManager.GetClient()
+	if err != nil {
+		return false, err
+	}
+
+	// Create SelfSubjectAccessReview to check permissions
+	// 创建 SelfSubjectAccessReview 来检查权限
+	sar := &authorizationv1.SelfSubjectAccessReview{
+		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
+				Namespace: namespace,
+				Verb:      verb,
+				Resource:  resource,
+			},
+		},
+	}
+
+	// Create the review
+	// 创建审查
+	response, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, sar, metav1.CreateOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to check RBAC permission: %w", err)
+	}
+
+	return response.Status.Allowed, nil
 }

@@ -4,77 +4,141 @@ A Model Context Protocol (MCP) server for Kubernetes cluster management and reso
 
 ## Features
 
-- 🔗 Connect to multiple Kubernetes clusters
-- 🔄 Switch between clusters dynamically  
+- 🔗 Connect to Kubernetes clusters via HTTP/SSE
 - 👀 View Kubernetes resources (read-only)
-- 🛡️ Secure, read-only access by default
-- 🌐 Support for both stdio and HTTP transports
+- 🛡️ Secure access with Token authentication
+- 📊 Comprehensive tool set for cluster management
+- 🔒 Secret data redaction for security
+- 🚀 CLI powered by Cobra and Viper
 
 ## Architecture
 
-- **MCP Server** (Golang): Provides k8s cluster connection and resource viewing capabilities
+- **MCP Server** (Golang): Provides k8s cluster connection and resource viewing capabilities via HTTP/SSE
 - **MCP Client** (Golang): Test client for validating server functionality
 
 ## Quick Start
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.23 or later
 - kubectl configured with cluster access
 - Valid kubeconfig file
+- TLS certificate and key (for HTTPS mode, default)
 
 ### Building
 
 ```bash
-# Build the MCP server
+# Build MCP server
 go build -o bin/k8s-mcp-server ./cmd/server
 
-# Build the test client
+# Build test client
 go build -o bin/k8s-mcp-client ./cmd/client
 ```
 
 ### Running
 
-```bash
-# Start the MCP server (stdio mode)
-./bin/k8s-mcp-server
+#### 1. Generate TLS Certificate (for HTTPS mode)
 
-# Test with the client
-./bin/k8s-mcp-client ./bin/k8s-mcp-server
+```bash
+# Generate a self-signed certificate for testing
+openssl req -x509 -newkey rsa:4096 -nodes -days 365 -keyout key.pem -out cert.pem -subj "/CN=localhost"
+```
+
+#### 2. Start MCP Server
+
+```bash
+# Using command line flags
+./bin/k8s-mcp-server --token my-secret-token --cert cert.pem --key key.pem
+
+# Using environment variables (flags override env vars)
+export MCP_TOKEN=my-secret-token
+export MCP_CERT=cert.pem
+export MCP_KEY=key.pem
+./bin/k8s-mcp-server
+```
+
+#### 3. Test with Client
+
+```bash
+# Connect to HTTPS server
+./bin/k8s-mcp-client --server https://localhost:8443 --token my-secret-token
+
+# Connect to HTTP server
+./bin/k8s-mcp-client --server http://localhost:8443 --token my-secret-token --insecure-skip-verify
 ```
 
 ## Configuration
 
-The server supports configuration via:
-- Environment variables
-- kubeconfig files
-- Direct cluster configuration
+The server supports configuration via command-line flags and environment variables.
 
-## MCP Features
+### Server Configuration
 
-### Resources
-- `k8s://clusters` - Available cluster list
-- `k8s://cluster/{cluster-name}/namespaces` - Cluster namespaces
-- `k8s://cluster/{cluster-name}/resources/{resource-type}` - Resource lists
-- `k8s://cluster/{cluster-name}/resource/{resource-type}/{namespace}/{name}` - Resource details
+| Flag | Environment Variable | Default | Description |
+|-------|---------------------|---------|-------------|
+| `--port` | `MCP_PORT` | 8443 | Port to listen on |
+| `--cert` | `MCP_CERT` | | Path to TLS certificate file (required for HTTPS) |
+| `--key` | `MCP_KEY` | | Path to TLS key file (required for HTTPS) |
+| `--insecure` | `MCP_INSECURE` | false | Run in insecure HTTP mode (default is HTTPS) |
+| `--token` | `MCP_TOKEN` | | Authentication token (required) |
+| `--kubeconfig` | `MCP_KUBECONFIG` | | Path to kubeconfig file (optional) |
 
-### Tools
-- `list_clusters` - List all available clusters
-- `switch_cluster` - Switch active cluster
-- `list_namespaces` - List cluster namespaces
-- `list_resources` - List resources of specified type
-- `get_resource` - Get specific resource details
-- `describe_resource` - Get detailed resource description
+### Client Configuration
 
-### Prompts
-- `analyze_cluster_health` - Cluster health analysis prompt
-- `troubleshoot_pods` - Pod troubleshooting prompt
-- `resource_summary` - Resource summary analysis prompt
+| Flag | Environment Variable | Default | Description |
+|-------|---------------------|---------|-------------|
+| `--server` | `MCP_CLIENT_SERVER` | https://localhost:8443 | MCP server URL |
+| `--token` | `MCP_CLIENT_TOKEN` | | Authentication token (required) |
+| `--insecure-skip-verify` | `MCP_CLIENT_INSECURE_SKIP_VERIFY` | false | Skip TLS certificate verification |
+
+## MCP Tools
+
+The server provides the following tools:
+
+### Cluster Management
+
+- `get_cluster_status`: Get cluster status information (version, node count, namespace count)
+- `list_nodes`: List all nodes in cluster
+
+### Resource Management
+
+- `list_pods`: List pods in a namespace
+- `list_services`: List services in a namespace
+- `list_deployments`: List deployments in a namespace
+
+- `get_resource`: Get detailed information about a specific resource (JSON format). Secrets will be redacted.
+- `get_resource_yaml`: Get full YAML definition of a resource. Secrets will be redacted.
+
+### Observability & Debugging
+
+- `get_events`: Get cluster events
+- `get_pod_logs`: Get pod logs. Default tail_lines=100, max_bytes=1MB
+
+### Security
+
+- `check_rbac_permission`: Check if the current user has permission to perform an action (kubectl auth can-i)
 
 ## Security
 
 - All operations are read-only by default
+- Token-based authentication is required for all connections
+- Secret data is automatically redacted when retrieved
 - Supports RBAC permission validation
 - Secure kubeconfig handling
 - Connection timeout and retry mechanisms
-"# k8s-mcp" 
+
+## Integration
+
+k8s-mcp follows the standard MCP protocol and can be integrated into any MCP-compatible application:
+
+1. **Claude Desktop**: AI assistant can view and analyze Kubernetes resources
+2. **VS Code**: Get Kubernetes context via MCP extensions
+3. **Custom Applications**: Use MCP client libraries to integrate
+
+## Development
+
+To add new features:
+
+1. **New Tools**: Add new tool definitions and handler functions in `internal/mcp/server.go`
+2. **New Resources**: Add new resource types in `internal/k8s/resources.go`
+
+The project uses a modular design for easy extension and maintenance.
