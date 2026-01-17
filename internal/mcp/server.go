@@ -54,7 +54,7 @@ func (s *Server) GetMCPServer() *mcp.Server {
 // LoadKubeConfig loads kubeconfig
 // LoadKubeConfig 加载 kubeconfig 配置
 func (s *Server) LoadKubeConfig(configPath string) error {
-	return s.clusterManager.LoadKubeConfig(configPath)
+	return s.clusterManager.LoadKubeConfigAndInitCluster(configPath)
 }
 
 // RegisterTools registers all k8s tools

@@ -64,7 +64,7 @@ func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName st
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -97,7 +97,7 @@ func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterNa
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -195,7 +195,7 @@ func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clust
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, cl
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (ro *ResourceOperations) GetResourceDetails(ctx context.Context, resourceTy
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -322,7 +322,7 @@ func (ro *ResourceOperations) listConfigMaps(ctx context.Context, namespace, clu
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -356,7 +356,7 @@ func (ro *ResourceOperations) listSecrets(ctx context.Context, namespace, cluste
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -390,7 +390,7 @@ func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string)
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -435,7 +435,7 @@ func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, cluster
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -515,7 +515,7 @@ func (ro *ResourceOperations) GetClusterInfo(ctx context.Context, clusterName st
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return nil, err
@@ -559,7 +559,7 @@ func (ro *ResourceOperations) GetPodLogs(ctx context.Context, namespace, podName
 	if clusterName != "" {
 		client, err = ro.clusterManager.GetClientForCluster(clusterName)
 	} else {
-		client, err = ro.clusterManager.GetClient()
+		client, err = ro.clusterManager.GetCurrentClient()
 	}
 	if err != nil {
 		return "", err
@@ -629,7 +629,7 @@ func (ro *ResourceOperations) CheckRBACPermission(ctx context.Context, verb, res
 	var client *kubernetes.Clientset
 	var err error
 
-	client, err = ro.clusterManager.GetClient()
+	client, err = ro.clusterManager.GetCurrentClient()
 	if err != nil {
 		return false, err
 	}

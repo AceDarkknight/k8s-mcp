@@ -27,9 +27,9 @@ func NewClusterManager() *ClusterManager {
 	}
 }
 
-// LoadKubeConfig loads kubeconfig and initializes clusters
-// LoadKubeConfig 加载 kubeconfig 并初始化集群
-func (cm *ClusterManager) LoadKubeConfig(configPath string) error {
+// LoadKubeConfigAndInitCluster loads kubeconfig and initializes clusters
+// LoadKubeConfigAndInitCluster 加载 kubeconfig 并初始化集群
+func (cm *ClusterManager) LoadKubeConfigAndInitCluster(configPath string) error {
 	// Get the config file path
 	// 获取配置文件路径
 	configPath = cm.getKubeConfigPath(configPath)
@@ -143,8 +143,8 @@ func (cm *ClusterManager) SwitchCluster(clusterName string) error {
 	return nil
 }
 
-// GetClient returns the kubernetes client for the current cluster
-func (cm *ClusterManager) GetClient() (*kubernetes.Clientset, error) {
+// GetCurrentClient returns the kubernetes client for the current cluster
+func (cm *ClusterManager) GetCurrentClient() (*kubernetes.Clientset, error) {
 	if cm.currentCluster == "" {
 		return nil, fmt.Errorf("no current cluster set")
 	}
@@ -168,7 +168,7 @@ func (cm *ClusterManager) GetClientForCluster(clusterName string) (*kubernetes.C
 
 // HealthCheck checks if the current cluster is reachable
 func (cm *ClusterManager) HealthCheck(ctx context.Context) error {
-	client, err := cm.GetClient()
+	client, err := cm.GetCurrentClient()
 	if err != nil {
 		return err
 	}
