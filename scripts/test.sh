@@ -1,4 +1,4 @@
-CRLF#!/bin/bash
+#!/bin/bash
 # Test script for k8s-mcp on Linux
 
 echo "Building k8s-mcp..."

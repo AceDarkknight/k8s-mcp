@@ -181,6 +181,70 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// Tool result types
+// 工具结果类型
+
+// ClusterStatusResult represents the result of get_cluster_status tool
+// ClusterStatusResult 表示 get_cluster_status 工具的结果
+type ClusterStatusResult struct {
+	Status string `json:"status"`
+}
+
+// PodsResult represents the result of list_pods tool
+// PodsResult 表示 list_pods 工具的结果
+type PodsResult struct {
+	Pods string `json:"pods"`
+}
+
+// ServicesResult represents the result of list_services tool
+// ServicesResult 表示 list_services 工具的结果
+type ServicesResult struct {
+	Services string `json:"services"`
+}
+
+// DeploymentsResult represents the result of list_deployments tool
+// DeploymentsResult 表示 list_deployments 工具的结果
+type DeploymentsResult struct {
+	Deployments string `json:"deployments"`
+}
+
+// NodesResult represents the result of list_nodes tool
+// NodesResult 表示 list_nodes 工具的结果
+type NodesResult struct {
+	Nodes string `json:"nodes"`
+}
+
+// ResourceResult represents the result of get_resource tool
+// ResourceResult 表示 get_resource 工具的结果
+type ResourceResult struct {
+	Resource string `json:"resource"`
+}
+
+// YAMLResult represents the result of get_resource_yaml tool
+// YAMLResult 表示 get_resource_yaml 工具的结果
+type YAMLResult struct {
+	YAML string `json:"yaml"`
+}
+
+// EventsResult represents the result of get_events tool
+// EventsResult 表示 get_events 工具的结果
+type EventsResult struct {
+	Events string `json:"events"`
+}
+
+// LogsResult represents the result of get_pod_logs tool
+// LogsResult 表示 get_pod_logs 工具的结果
+type LogsResult struct {
+	Logs string `json:"logs"`
+}
+
+// RBACPermissionResult represents the result of check_rbac_permission tool
+// RBACPermissionResult 表示 check_rbac_permission 工具的结果
+type RBACPermissionResult struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason"`
+}
+
 // Tool handlers
 // 工具处理函数
 
@@ -188,16 +252,12 @@ func (s *Server) Close() error {
 // handleGetClusterStatus 处理 get_cluster_status 工具
 func (s *Server) handleGetClusterStatus(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (
 	*mcp.CallToolResult,
-	struct {
-		Status string `json:"status"`
-	},
+	ClusterStatusResult,
 	error,
 ) {
 	info, err := s.resourceOps.GetClusterInfo(ctx, "")
 	if err != nil {
-		return nil, struct {
-			Status string `json:"status"`
-		}{}, fmt.Errorf("failed to get cluster info: %w", err)
+		return nil, ClusterStatusResult{}, fmt.Errorf("failed to get cluster info: %w", err)
 	}
 
 	// Format the output
@@ -205,9 +265,7 @@ func (s *Server) handleGetClusterStatus(ctx context.Context, req *mcp.CallToolRe
 	statusText := fmt.Sprintf("Cluster Status:\n  Version: %s\n  Platform: %s\n  Node Count: %d\n  Namespace Count: %d",
 		info["version"], info["platform"], info["nodeCount"], info["namespaceCount"])
 
-	return nil, struct {
-		Status string `json:"status"`
-	}{
+	return nil, ClusterStatusResult{
 		Status: statusText,
 	}, nil
 }
@@ -218,16 +276,12 @@ func (s *Server) handleListPods(ctx context.Context, req *mcp.CallToolRequest, i
 	Namespace string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Pods string `json:"pods"`
-	},
+	PodsResult,
 	error,
 ) {
 	pods, err := s.resourceOps.ListPods(ctx, input.Namespace, "")
 	if err != nil {
-		return nil, struct {
-			Pods string `json:"pods"`
-		}{}, fmt.Errorf("failed to list pods: %w", err)
+		return nil, PodsResult{}, fmt.Errorf("failed to list pods: %w", err)
 	}
 
 	// Format the output
@@ -237,9 +291,7 @@ func (s *Server) handleListPods(ctx context.Context, req *mcp.CallToolRequest, i
 		podList += fmt.Sprintf("  - %s/%s (%s) - %s\n", pod.Namespace, pod.Name, pod.Kind, pod.Status)
 	}
 
-	return nil, struct {
-		Pods string `json:"pods"`
-	}{
+	return nil, PodsResult{
 		Pods: podList,
 	}, nil
 }
@@ -250,16 +302,12 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 	Namespace string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Services string `json:"services"`
-	},
+	ServicesResult,
 	error,
 ) {
 	services, err := s.resourceOps.ListServices(ctx, input.Namespace, "")
 	if err != nil {
-		return nil, struct {
-			Services string `json:"services"`
-		}{}, fmt.Errorf("failed to list services: %w", err)
+		return nil, ServicesResult{}, fmt.Errorf("failed to list services: %w", err)
 	}
 
 	// Format the output
@@ -269,9 +317,7 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 		serviceList += fmt.Sprintf("  - %s/%s (%s) - %s\n", svc.Namespace, svc.Name, svc.Kind, svc.Status)
 	}
 
-	return nil, struct {
-		Services string `json:"services"`
-	}{
+	return nil, ServicesResult{
 		Services: serviceList,
 	}, nil
 }
@@ -282,16 +328,12 @@ func (s *Server) handleListDeployments(ctx context.Context, req *mcp.CallToolReq
 	Namespace string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Deployments string `json:"deployments"`
-	},
+	DeploymentsResult,
 	error,
 ) {
 	deployments, err := s.resourceOps.ListDeployments(ctx, input.Namespace, "")
 	if err != nil {
-		return nil, struct {
-			Deployments string `json:"deployments"`
-		}{}, fmt.Errorf("failed to list deployments: %w", err)
+		return nil, DeploymentsResult{}, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
 	// Format the output
@@ -301,9 +343,7 @@ func (s *Server) handleListDeployments(ctx context.Context, req *mcp.CallToolReq
 		deploymentList += fmt.Sprintf("  - %s/%s (%s) - %s\n", dep.Namespace, dep.Name, dep.Kind, dep.Status)
 	}
 
-	return nil, struct {
-		Deployments string `json:"deployments"`
-	}{
+	return nil, DeploymentsResult{
 		Deployments: deploymentList,
 	}, nil
 }
@@ -312,16 +352,12 @@ func (s *Server) handleListDeployments(ctx context.Context, req *mcp.CallToolReq
 // handleListNodes 处理 list_nodes 工具
 func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (
 	*mcp.CallToolResult,
-	struct {
-		Nodes string `json:"nodes"`
-	},
+	NodesResult,
 	error,
 ) {
-	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNodes, "", "")
+	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNode, "", "")
 	if err != nil {
-		return nil, struct {
-			Nodes string `json:"nodes"`
-		}{}, fmt.Errorf("failed to list nodes: %w", err)
+		return nil, NodesResult{}, fmt.Errorf("failed to list nodes: %w", err)
 	}
 
 	// Format the output
@@ -331,9 +367,7 @@ func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, 
 		nodeList += fmt.Sprintf("  - %s (%s) - %s\n", node.Name, node.Kind, node.Status)
 	}
 
-	return nil, struct {
-		Nodes string `json:"nodes"`
-	}{
+	return nil, NodesResult{
 		Nodes: nodeList,
 	}, nil
 }
@@ -346,16 +380,12 @@ func (s *Server) handleGetResource(ctx context.Context, req *mcp.CallToolRequest
 	Namespace    string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Resource string `json:"resource"`
-	},
+	ResourceResult,
 	error,
 ) {
 	resource, err := s.resourceOps.GetResourceDetails(ctx, k8s.ResourceType(input.ResourceType), input.Namespace, input.Name, "")
 	if err != nil {
-		return nil, struct {
-			Resource string `json:"resource"`
-		}{}, fmt.Errorf("failed to get resource: %w", err)
+		return nil, ResourceResult{}, fmt.Errorf("failed to get resource: %w", err)
 	}
 
 	// Check if it's a secret and redact data
@@ -368,14 +398,10 @@ func (s *Server) handleGetResource(ctx context.Context, req *mcp.CallToolRequest
 	// 序列化为 JSON
 	jsonStr, err := s.resourceOps.SerializeResource(resource)
 	if err != nil {
-		return nil, struct {
-			Resource string `json:"resource"`
-		}{}, fmt.Errorf("failed to serialize resource: %w", err)
+		return nil, ResourceResult{}, fmt.Errorf("failed to serialize resource: %w", err)
 	}
 
-	return nil, struct {
-		Resource string `json:"resource"`
-	}{
+	return nil, ResourceResult{
 		Resource: jsonStr,
 	}, nil
 }
@@ -388,16 +414,12 @@ func (s *Server) handleGetResourceYAML(ctx context.Context, req *mcp.CallToolReq
 	Namespace    string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		YAML string `json:"yaml"`
-	},
+	YAMLResult,
 	error,
 ) {
 	resource, err := s.resourceOps.GetResourceDetails(ctx, k8s.ResourceType(input.ResourceType), input.Namespace, input.Name, "")
 	if err != nil {
-		return nil, struct {
-			YAML string `json:"yaml"`
-		}{}, fmt.Errorf("failed to get resource: %w", err)
+		return nil, YAMLResult{}, fmt.Errorf("failed to get resource: %w", err)
 	}
 
 	// Check if it's a secret and redact data
@@ -410,14 +432,10 @@ func (s *Server) handleGetResourceYAML(ctx context.Context, req *mcp.CallToolReq
 	// 序列化为 JSON（如果需要，我们将来可以转换为 YAML，目前 JSON 即可）
 	jsonStr, err := s.resourceOps.SerializeResource(resource)
 	if err != nil {
-		return nil, struct {
-			YAML string `json:"yaml"`
-		}{}, fmt.Errorf("failed to serialize resource: %w", err)
+		return nil, YAMLResult{}, fmt.Errorf("failed to serialize resource: %w", err)
 	}
 
-	return nil, struct {
-		YAML string `json:"yaml"`
-	}{
+	return nil, YAMLResult{
 		YAML: jsonStr,
 	}, nil
 }
@@ -428,16 +446,12 @@ func (s *Server) handleGetEvents(ctx context.Context, req *mcp.CallToolRequest, 
 	Namespace string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Events string `json:"events"`
-	},
+	EventsResult,
 	error,
 ) {
-	events, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeEvents, input.Namespace, "")
+	events, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeEvent, input.Namespace, "")
 	if err != nil {
-		return nil, struct {
-			Events string `json:"events"`
-		}{}, fmt.Errorf("failed to list events: %w", err)
+		return nil, EventsResult{}, fmt.Errorf("failed to list events: %w", err)
 	}
 
 	// Format the output
@@ -447,9 +461,7 @@ func (s *Server) handleGetEvents(ctx context.Context, req *mcp.CallToolRequest, 
 		eventList += fmt.Sprintf("  - %s/%s (%s) - %s\n", event.Namespace, event.Name, event.Kind, event.Status)
 	}
 
-	return nil, struct {
-		Events string `json:"events"`
-	}{
+	return nil, EventsResult{
 		Events: eventList,
 	}, nil
 }
@@ -465,9 +477,7 @@ func (s *Server) handleGetPodLogs(ctx context.Context, req *mcp.CallToolRequest,
 	ClusterName   string `json:"cluster_name,omitempty"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Logs string `json:"logs"`
-	},
+	LogsResult,
 	error,
 ) {
 	// Set default tail_lines to 100 if not specified
@@ -481,14 +491,10 @@ func (s *Server) handleGetPodLogs(ctx context.Context, req *mcp.CallToolRequest,
 	// 获取日志
 	logs, err := s.resourceOps.GetPodLogs(ctx, input.Namespace, input.PodName, input.ContainerName, &tailLines, input.Previous, input.ClusterName)
 	if err != nil {
-		return nil, struct {
-			Logs string `json:"logs"`
-		}{}, fmt.Errorf("failed to get pod logs: %w", err)
+		return nil, LogsResult{}, fmt.Errorf("failed to get pod logs: %w", err)
 	}
 
-	return nil, struct {
-		Logs string `json:"logs"`
-	}{
+	return nil, LogsResult{
 		Logs: logs,
 	}, nil
 }
@@ -501,24 +507,15 @@ func (s *Server) handleCheckRBACPermission(ctx context.Context, req *mcp.CallToo
 	Namespace string `json:"namespace"`
 }) (
 	*mcp.CallToolResult,
-	struct {
-		Allowed bool   `json:"allowed"`
-		Reason  string `json:"reason"`
-	},
+	RBACPermissionResult,
 	error,
 ) {
 	allowed, err := s.resourceOps.CheckRBACPermission(ctx, input.Verb, input.Resource, input.Namespace)
 	if err != nil {
-		return nil, struct {
-			Allowed bool   `json:"allowed"`
-			Reason  string `json:"reason"`
-		}{}, fmt.Errorf("failed to check RBAC permission: %w", err)
+		return nil, RBACPermissionResult{}, fmt.Errorf("failed to check RBAC permission: %w", err)
 	}
 
-	result := struct {
-		Allowed bool   `json:"allowed"`
-		Reason  string `json:"reason"`
-	}{
+	result := RBACPermissionResult{
 		Allowed: allowed,
 	}
 

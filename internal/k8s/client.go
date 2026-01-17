@@ -8,6 +8,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/util/homedir"
 )
 
@@ -27,46 +28,75 @@ func NewClusterManager() *ClusterManager {
 }
 
 // LoadKubeConfig loads kubeconfig and initializes clusters
+// LoadKubeConfig 加载 kubeconfig 并初始化集群
 func (cm *ClusterManager) LoadKubeConfig(configPath string) error {
-	if configPath == "" {
-		if home := homedir.HomeDir(); home != "" {
-			configPath = filepath.Join(home, ".kube", "config")
-		}
-	}
+	// Get the config file path
+	// 获取配置文件路径
+	configPath = cm.getKubeConfigPath(configPath)
 
 	// Load the kubeconfig file
+	// 加载 kubeconfig 文件
 	config, err := clientcmd.LoadFromFile(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load kubeconfig: %w", err)
 	}
 
 	// Create clients for each cluster context
+	// 为每个集群上下文创建客户端
 	for contextName, context := range config.Contexts {
-		clusterName := context.Cluster
-
-		// Build config for this context
-		clientConfig := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{
-			CurrentContext: contextName,
-		})
-
-		restConfig, err := clientConfig.ClientConfig()
+		err := cm.addContextCluster(config, contextName, context)
 		if err != nil {
-			return fmt.Errorf("failed to create config for context %s: %w", contextName, err)
+			return err
 		}
+	}
 
-		// Create kubernetes client
-		clientset, err := kubernetes.NewForConfig(restConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create client for context %s: %w", contextName, err)
-		}
+	return nil
+}
 
-		cm.clusters[clusterName] = clientset
-		cm.configs[clusterName] = restConfig
+// getKubeConfigPath returns the kubeconfig path, using default if not specified
+// getKubeConfigPath 返回 kubeconfig 路径，如果未指定则使用默认值
+func (cm *ClusterManager) getKubeConfigPath(configPath string) string {
+	if configPath != "" {
+		return configPath
+	}
 
-		// Set first cluster as current if none set
-		if cm.currentCluster == "" {
-			cm.currentCluster = clusterName
-		}
+	if home := homedir.HomeDir(); home != "" {
+		return filepath.Join(home, ".kube", "config")
+	}
+
+	return ""
+}
+
+// addContextCluster adds a cluster from a kubeconfig context
+// addContextCluster 从 kubeconfig 上下文添加集群
+func (cm *ClusterManager) addContextCluster(config *clientcmdapi.Config, contextName string, context *clientcmdapi.Context) error {
+	clusterName := context.Cluster
+
+	// Build config for this context
+	// 为此上下文构建配置
+	clientConfig := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{
+		CurrentContext: contextName,
+	})
+
+	restConfig, err := clientConfig.ClientConfig()
+	if err != nil {
+		return fmt.Errorf("failed to create config for context %s: %w", contextName, err)
+	}
+
+	// Create kubernetes client
+	// 创建 kubernetes 客户端
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create client for context %s: %w", contextName, err)
+	}
+
+	cm.clusters[clusterName] = clientset
+	cm.configs[clusterName] = restConfig
+
+	// Set first cluster as current if none set
+	// 如果未设置当前集群，则将第一个集群设置为当前集群
+	if cm.currentCluster == "" {
+		cm.currentCluster = clusterName
 	}
 
 	return nil

@@ -124,26 +124,38 @@ func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterNa
 }
 
 // getPodStatus calculates a high-level status for a pod, similar to kubectl
+// getPodStatus 计算Pod的高级状态，类似于kubectl
 func getPodStatus(pod *corev1.Pod) string {
 	// 1. Check if pod is being deleted
+	// 1. 检查 Pod 是否正在删除
 	if pod.DeletionTimestamp != nil {
 		return "Terminating"
 	}
 
 	// 2. Check failed reason
+	// 2. 检查失败原因
 	if pod.Status.Reason != "" {
 		return pod.Status.Reason
 	}
 
 	// 3. Check Init Containers
+	// 3. 检查 Init 容器
+	// Init containers run before main containers and are used for setup tasks
+	// Init 容器在主容器之前运行，用于设置任务
 	for _, containerStatus := range pod.Status.InitContainerStatuses {
+		// Check if init container terminated with error
+		// 检查 init 容器是否以错误状态终止
 		if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
 			if containerStatus.State.Terminated.Reason != "" {
 				return "Init:" + containerStatus.State.Terminated.Reason
 			}
 			return "Init:Error"
 		}
+		// Check if init container is waiting with a reason
+		// 检查 init 容器是否因某个原因在等待
 		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason != "" {
+			// PodInitializing is a normal transient state, don't report it
+			// PodInitializing 是一个正常的瞬态，不报告它
 			if containerStatus.State.Waiting.Reason != "PodInitializing" {
 				return "Init:" + containerStatus.State.Waiting.Reason
 			}
@@ -151,11 +163,17 @@ func getPodStatus(pod *corev1.Pod) string {
 	}
 
 	// 4. Check Containers
+	// 4. 检查主容器
 	// Priority: Waiting (CrashLoopBackOff etc.) > Terminated (Error) > Running
+	// 优先级：等待（如 CrashLoopBackOff）> 终止（错误）> 运行
 	for _, containerStatus := range pod.Status.ContainerStatuses {
+		// Check if container is waiting with a reason (highest priority)
+		// 检查容器是否因某个原因在等待（最高优先级）
 		if containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Reason != "" {
 			return containerStatus.State.Waiting.Reason
 		}
+		// Check if container terminated with error (second priority)
+		// 检查容器是否以错误状态终止（第二优先级）
 		if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
 			if containerStatus.State.Terminated.Reason != "" {
 				return containerStatus.State.Terminated.Reason
@@ -165,6 +183,7 @@ func getPodStatus(pod *corev1.Pod) string {
 	}
 
 	// 5. If everything looks fine, return the Phase (Running, Pending, Succeeded)
+	// 5. 如果一切看起来正常，返回 Phase（Running, Pending, Succeeded）
 	return string(pod.Status.Phase)
 }
 
