@@ -96,13 +96,13 @@ func (s *Server) RegisterTools() {
 	// get_resource
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_resource",
-		Description: "Get detailed information about a specific resource (JSON format). Secrets will be redacted. Parameters: resource_type (string, required, e.g. 'pods'), name (string, required), namespace (string, required)",
+		Description: "Get detailed information about a specific resource (JSON format). Secrets will be redacted. Parameters: resource_type (string, required, e.g. 'pods' or 'pod'), name (string, required), namespace (string, required)",
 	}, s.handleGetResource)
 
 	// get_resource_yaml
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_resource_yaml",
-		Description: "Get the full YAML definition of a resource. Secrets will be redacted. Parameters: resource_type (string, required, e.g. 'pods'), name (string, required), namespace (string, required)",
+		Description: "Get the full YAML definition of a resource. Secrets will be redacted. Parameters: resource_type (string, required, e.g. 'pods' or 'pod'), name (string, required), namespace (string, required)",
 	}, s.handleGetResourceYAML)
 
 	// get_events
@@ -114,7 +114,7 @@ func (s *Server) RegisterTools() {
 	// get_pod_logs
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_pod_logs",
-		Description: "Get pod logs. Default tail_lines=100, max_bytes=1MB. Parameters: pod_name (string, required), namespace (string, required), container_name (string, optional), tail_lines (int, optional), previous (bool, optional)",
+		Description: "Get pod logs. Default tail_lines=100, max_bytes=1MB. Parameters: pod_name (string, required), namespace (string, required), container_name (string, optional), tail_lines (int, optional), previous (bool, optional), cluster_name (string, optional)",
 	}, s.handleGetPodLogs)
 
 	// check_rbac_permission
@@ -317,7 +317,7 @@ func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, 
 	},
 	error,
 ) {
-	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNode, "", "")
+	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNodes, "", "")
 	if err != nil {
 		return nil, struct {
 			Nodes string `json:"nodes"`
@@ -360,7 +360,7 @@ func (s *Server) handleGetResource(ctx context.Context, req *mcp.CallToolRequest
 
 	// Check if it's a secret and redact data
 	// 检查是否是 secret 并脱敏数据
-	if input.ResourceType == "secrets" {
+	if k8s.ResourceType(input.ResourceType) == k8s.ResourceTypeSecrets || k8s.ResourceType(input.ResourceType) == k8s.ResourceTypeSecret {
 		resource = s.redactSecretData(resource)
 	}
 
@@ -402,7 +402,7 @@ func (s *Server) handleGetResourceYAML(ctx context.Context, req *mcp.CallToolReq
 
 	// Check if it's a secret and redact data
 	// 检查是否是 secret 并脱敏数据
-	if input.ResourceType == "secrets" {
+	if k8s.ResourceType(input.ResourceType) == k8s.ResourceTypeSecrets || k8s.ResourceType(input.ResourceType) == k8s.ResourceTypeSecret {
 		resource = s.redactSecretData(resource)
 	}
 
@@ -433,7 +433,7 @@ func (s *Server) handleGetEvents(ctx context.Context, req *mcp.CallToolRequest, 
 	},
 	error,
 ) {
-	events, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeEvent, input.Namespace, "")
+	events, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeEvents, input.Namespace, "")
 	if err != nil {
 		return nil, struct {
 			Events string `json:"events"`
@@ -462,6 +462,7 @@ func (s *Server) handleGetPodLogs(ctx context.Context, req *mcp.CallToolRequest,
 	ContainerName string `json:"container_name,omitempty"`
 	TailLines     *int64 `json:"tail_lines,omitempty"`
 	Previous      bool   `json:"previous,omitempty"`
+	ClusterName   string `json:"cluster_name,omitempty"`
 }) (
 	*mcp.CallToolResult,
 	struct {
@@ -478,7 +479,7 @@ func (s *Server) handleGetPodLogs(ctx context.Context, req *mcp.CallToolRequest,
 
 	// Get logs
 	// 获取日志
-	logs, err := s.resourceOps.GetPodLogs(ctx, input.Namespace, input.PodName, input.ContainerName, &tailLines, input.Previous)
+	logs, err := s.resourceOps.GetPodLogs(ctx, input.Namespace, input.PodName, input.ContainerName, &tailLines, input.Previous, input.ClusterName)
 	if err != nil {
 		return nil, struct {
 			Logs string `json:"logs"`

@@ -16,14 +16,22 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypePod        ResourceType = "pods"
-	ResourceTypeService    ResourceType = "services"
-	ResourceTypeDeployment ResourceType = "deployments"
-	ResourceTypeConfigMap  ResourceType = "configmaps"
-	ResourceTypeSecret     ResourceType = "secrets"
-	ResourceTypeNamespace  ResourceType = "namespaces"
-	ResourceTypeNode       ResourceType = "nodes"
-	ResourceTypeEvent      ResourceType = "events"
+	ResourceTypePods        ResourceType = "pods"
+	ResourceTypePod         ResourceType = "pod"
+	ResourceTypeServices    ResourceType = "services"
+	ResourceTypeService     ResourceType = "service"
+	ResourceTypeDeployments ResourceType = "deployments"
+	ResourceTypeDeployment  ResourceType = "deployment"
+	ResourceTypeConfigMaps  ResourceType = "configmaps"
+	ResourceTypeConfigMap   ResourceType = "configmap"
+	ResourceTypeSecrets     ResourceType = "secrets"
+	ResourceTypeSecret      ResourceType = "secret"
+	ResourceTypeNamespaces  ResourceType = "namespaces"
+	ResourceTypeNamespace   ResourceType = "namespace"
+	ResourceTypeNodes       ResourceType = "nodes"
+	ResourceTypeNode        ResourceType = "node"
+	ResourceTypeEvents      ResourceType = "events"
+	ResourceTypeEvent       ResourceType = "event"
 )
 
 // ResourceInfo holds basic information about a k8s resource
@@ -244,19 +252,19 @@ func (ro *ResourceOperations) GetResourceDetails(ctx context.Context, resourceTy
 	}
 
 	switch resourceType {
-	case ResourceTypePod:
+	case ResourceTypePods, ResourceTypePod:
 		return client.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeService:
+	case ResourceTypeServices, ResourceTypeService:
 		return client.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeDeployment:
+	case ResourceTypeDeployments, ResourceTypeDeployment:
 		return client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeConfigMap:
+	case ResourceTypeConfigMaps, ResourceTypeConfigMap:
 		return client.CoreV1().ConfigMaps(namespace).Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeSecret:
+	case ResourceTypeSecrets, ResourceTypeSecret:
 		return client.CoreV1().Secrets(namespace).Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeNamespace:
+	case ResourceTypeNamespaces, ResourceTypeNamespace:
 		return client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
-	case ResourceTypeNode:
+	case ResourceTypeNodes, ResourceTypeNode:
 		return client.CoreV1().Nodes().Get(ctx, name, metav1.GetOptions{})
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resourceType)
@@ -266,21 +274,21 @@ func (ro *ResourceOperations) GetResourceDetails(ctx context.Context, resourceTy
 // ListResourcesByType lists resources of a specific type
 func (ro *ResourceOperations) ListResourcesByType(ctx context.Context, resourceType ResourceType, namespace, clusterName string) ([]ResourceInfo, error) {
 	switch resourceType {
-	case ResourceTypePod:
+	case ResourceTypePods, ResourceTypePod:
 		return ro.ListPods(ctx, namespace, clusterName)
-	case ResourceTypeService:
+	case ResourceTypeServices, ResourceTypeService:
 		return ro.ListServices(ctx, namespace, clusterName)
-	case ResourceTypeDeployment:
+	case ResourceTypeDeployments, ResourceTypeDeployment:
 		return ro.ListDeployments(ctx, namespace, clusterName)
-	case ResourceTypeNamespace:
+	case ResourceTypeNamespaces, ResourceTypeNamespace:
 		return ro.ListNamespaces(ctx, clusterName)
-	case ResourceTypeConfigMap:
+	case ResourceTypeConfigMaps, ResourceTypeConfigMap:
 		return ro.listConfigMaps(ctx, namespace, clusterName)
-	case ResourceTypeSecret:
+	case ResourceTypeSecrets, ResourceTypeSecret:
 		return ro.listSecrets(ctx, namespace, clusterName)
-	case ResourceTypeNode:
+	case ResourceTypeNodes, ResourceTypeNode:
 		return ro.listNodes(ctx, clusterName)
-	case ResourceTypeEvent:
+	case ResourceTypeEvents, ResourceTypeEvent:
 		return ro.listEvents(ctx, namespace, clusterName)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resourceType)
@@ -436,13 +444,21 @@ func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, cluster
 // GetSupportedResourceTypes returns all supported resource types
 func (ro *ResourceOperations) GetSupportedResourceTypes() []ResourceType {
 	return []ResourceType{
+		ResourceTypePods,
 		ResourceTypePod,
+		ResourceTypeServices,
 		ResourceTypeService,
+		ResourceTypeDeployments,
 		ResourceTypeDeployment,
+		ResourceTypeConfigMaps,
 		ResourceTypeConfigMap,
+		ResourceTypeSecrets,
 		ResourceTypeSecret,
+		ResourceTypeNamespaces,
 		ResourceTypeNamespace,
+		ResourceTypeNodes,
 		ResourceTypeNode,
+		ResourceTypeEvents,
 		ResourceTypeEvent,
 	}
 }
@@ -517,11 +533,15 @@ func (ro *ResourceOperations) GetClusterInfo(ctx context.Context, clusterName st
 
 // GetPodLogs retrieves logs from a pod
 // GetPodLogs 从 Pod 获取日志
-func (ro *ResourceOperations) GetPodLogs(ctx context.Context, namespace, podName, containerName string, tailLines *int64, previous bool) (string, error) {
+func (ro *ResourceOperations) GetPodLogs(ctx context.Context, namespace, podName, containerName string, tailLines *int64, previous bool, clusterName string) (string, error) {
 	var client *kubernetes.Clientset
 	var err error
 
-	client, err = ro.clusterManager.GetClient()
+	if clusterName != "" {
+		client, err = ro.clusterManager.GetClientForCluster(clusterName)
+	} else {
+		client, err = ro.clusterManager.GetClient()
+	}
 	if err != nil {
 		return "", err
 	}
