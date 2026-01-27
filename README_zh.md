@@ -14,6 +14,7 @@
 
 - **MCP 服务器** (Golang): 通过 HTTP/SSE 提供 k8s 集群连接和资源查看功能
 - **MCP 客户端** (Golang): 用于验证服务器功能的测试客户端
+- **pkg/mcpclient** (Golang): 可复用的客户端库，用于在其他 Go 应用程序中集成 MCP 功能
 
 ## 快速开始
 
@@ -119,6 +120,68 @@ openssl req -x509 -newkey rsa:4096 -nodes -days 365 -keyout key.pem -out cert.pe
 - 连接超时和重试机制
 
 ## 集成
+
+### 作为库使用
+
+`pkg/mcpclient` 包可以导入到其他 Go 应用程序中使用：
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/AceDarkknight/k8s-mcp/pkg/mcpclient"
+)
+
+func main() {
+    // 创建配置
+    config := mcpclient.Config{
+        ServerURL:          "https://localhost:8443",
+        AuthToken:          "your-token",
+        InsecureSkipVerify: true,
+    }
+
+    // 创建客户端，支持自定义头
+    client, err := mcpclient.NewClient(config,
+        mcpclient.WithHeader("X-Custom-Header", "value"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Close()
+
+    // 连接到服务器
+    ctx := context.Background()
+    if err := client.Connect(ctx); err != nil {
+        log.Fatal(err)
+    }
+
+    // 列出工具
+    tools, err := client.ListTools(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    for _, tool := range tools {
+        fmt.Printf("工具: %s\n", tool.Name)
+    }
+
+    // 调用工具
+    result, err := client.CallTool(ctx, "get_cluster_status", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("结果: %v\n", result)
+}
+```
+
+更多详情请参阅 [`pkg/mcpclient/README.md`](pkg/mcpclient/README.md)。
+
+### MCP 协议集成
 
 k8s-mcp 遵循标准的 MCP 协议，可以集成到任何兼容 MCP 的应用程序中：
 

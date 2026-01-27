@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"k8s-mcp/internal/k8s"
+	"github.com/AceDarkknight/k8s-mcp/internal/k8s"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

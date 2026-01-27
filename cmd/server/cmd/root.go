@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"k8s-mcp/internal/mcp"
+	"github.com/AceDarkknight/k8s-mcp/internal/mcp"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

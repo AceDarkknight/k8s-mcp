@@ -3,12 +3,12 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"strings"
+
+	"github.com/AceDarkknight/k8s-mcp/pkg/mcpclient"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -67,22 +67,6 @@ func initConfig() {
 	viper.BindEnv("insecure-skip-verify", "MCP_CLIENT_INSECURE_SKIP_VERIFY")
 }
 
-// tokenAuthTransport wraps http.RoundTripper to add authorization header
-// tokenAuthTransport 包装 http.RoundTripper 以添加授权头
-type tokenAuthTransport struct {
-	token     string
-	transport http.RoundTripper
-}
-
-// RoundTrip implements http.RoundTripper interface
-// RoundTrip 实现 http.RoundTripper 接口
-func (t *tokenAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Add authorization header
-	// 添加授权头
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t.token))
-	return t.transport.RoundTrip(req)
-}
-
 // executeClient starts the MCP client
 // executeClient 启动 MCP 客户端
 func executeClient() {
@@ -98,46 +82,28 @@ func executeClient() {
 		log.Fatal("Error: --token is required")
 	}
 
-	// Create HTTP client with token authentication
-	// 创建带有 Token 认证的 HTTP 客户端
-	httpClient := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: insecureSkipVerify,
-			},
-		},
+	// Create client configuration
+	// 创建客户端配置
+	config := mcpclient.Config{
+		ServerURL:          serverURL,
+		AuthToken:          authToken,
+		InsecureSkipVerify: insecureSkipVerify,
 	}
 
-	// Inject token into requests using a custom transport wrapper
-	// 使用自定义传输包装器在请求中注入 Token
-	tokenTransport := &tokenAuthTransport{
-		token:     authToken,
-		transport: httpClient.Transport,
+	// Create client instance
+	// 创建客户端实例
+	client, err := mcpclient.NewClient(config, mcpclient.WithUserAgent("k8s-mcp-client/1.0.0"))
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
 	}
-	httpClient.Transport = tokenTransport
-
-	// Create MCP client
-	// 创建 MCP 客户端
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "k8s-mcp-client",
-		Version: "1.0.0",
-	}, nil)
-
-	// Create streamable transport with custom HTTP client
-	// 创建带有自定义 HTTP 客户端的可流式传输
-	transport := &mcp.StreamableClientTransport{
-		Endpoint:   serverURL,
-		HTTPClient: httpClient,
-	}
+	defer client.Close()
 
 	// Connect to server
 	// 连接到服务器
 	ctx := context.Background()
-	session, err := client.Connect(ctx, transport, nil)
-	if err != nil {
+	if err := client.Connect(ctx); err != nil {
 		log.Fatalf("Connection failed: %v", err)
 	}
-	defer session.Close()
 
 	fmt.Printf("Connected to: %s\n", serverURL)
 	fmt.Println("Type 'help' for available commands, 'quit' to exit")
@@ -160,7 +126,7 @@ func executeClient() {
 			break
 		}
 
-		if err := handleCommand(ctx, session, input); err != nil {
+		if err := handleCommand(ctx, client, input); err != nil {
 			fmt.Printf("Error: %v\n", err)
 		}
 	}
@@ -168,7 +134,7 @@ func executeClient() {
 
 // handleCommand processes user commands
 // handleCommand 处理用户命令
-func handleCommand(ctx context.Context, session *mcp.ClientSession, input string) error {
+func handleCommand(ctx context.Context, client *mcpclient.Client, input string) error {
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
 		return nil
@@ -181,13 +147,13 @@ func handleCommand(ctx context.Context, session *mcp.ClientSession, input string
 		showHelp()
 		return nil
 	case "tools":
-		return listTools(ctx, session)
+		return listTools(ctx, client)
 	case "call":
 		if len(parts) < 2 {
 			fmt.Println("Usage: call <tool_name> [args...]")
 			return nil
 		}
-		return callTool(ctx, session, parts[1], parts[2:])
+		return callTool(ctx, client, parts[1], parts[2:])
 	default:
 		fmt.Printf("Unknown command: %s. Type 'help' for available commands.\n", command)
 		return nil
@@ -208,21 +174,21 @@ func showHelp() {
 	fmt.Println("  call get_pod_logs pod_name=my-pod namespace=default")
 }
 
-func listTools(ctx context.Context, session *mcp.ClientSession) error {
-	result, err := session.ListTools(ctx, nil)
+func listTools(ctx context.Context, client *mcpclient.Client) error {
+	tools, err := client.ListTools(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
 	}
 
 	fmt.Println("Available tools:")
-	for _, tool := range result.Tools {
+	for _, tool := range tools {
 		fmt.Printf("  %s - %s\n", tool.Name, tool.Description)
 	}
 
 	return nil
 }
 
-func callTool(ctx context.Context, session *mcp.ClientSession, toolName string, args []string) error {
+func callTool(ctx context.Context, client *mcpclient.Client, toolName string, args []string) error {
 	// Parse simple arguments (key=value format)
 	// 解析简单参数（key=value 格式）
 	arguments := make(map[string]interface{})
@@ -235,10 +201,7 @@ func callTool(ctx context.Context, session *mcp.ClientSession, toolName string, 
 
 	// Call tool
 	// 调用工具
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      toolName,
-		Arguments: arguments,
-	})
+	result, err := client.CallTool(ctx, toolName, arguments)
 	if err != nil {
 		return fmt.Errorf("tool call failed: %w", err)
 	}

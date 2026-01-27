@@ -15,6 +15,7 @@ A Model Context Protocol (MCP) server for Kubernetes cluster management and reso
 
 - **MCP Server** (Golang): Provides k8s cluster connection and resource viewing capabilities via HTTP/SSE
 - **MCP Client** (Golang): Test client for validating server functionality
+- **pkg/mcpclient** (Golang): Reusable client library for integrating MCP functionality into other Go applications
 
 ## Quick Start
 
@@ -127,6 +128,68 @@ The server provides the following tools:
 - Connection timeout and retry mechanisms
 
 ## Integration
+
+### Using as a Library
+
+The `pkg/mcpclient` package can be imported and used in other Go applications:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/AceDarkknight/k8s-mcp/pkg/mcpclient"
+)
+
+func main() {
+    // Create configuration
+    config := mcpclient.Config{
+        ServerURL:          "https://localhost:8443",
+        AuthToken:          "your-token",
+        InsecureSkipVerify: true,
+    }
+
+    // Create client with optional custom headers
+    client, err := mcpclient.NewClient(config,
+        mcpclient.WithHeader("X-Custom-Header", "value"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Close()
+
+    // Connect to server
+    ctx := context.Background()
+    if err := client.Connect(ctx); err != nil {
+        log.Fatal(err)
+    }
+
+    // List tools
+    tools, err := client.ListTools(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    for _, tool := range tools {
+        fmt.Printf("Tool: %s\n", tool.Name)
+    }
+
+    // Call a tool
+    result, err := client.CallTool(ctx, "get_cluster_status", nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Result: %v\n", result)
+}
+```
+
+For more details, see [`pkg/mcpclient/README.md`](pkg/mcpclient/README.md).
+
+### MCP Protocol Integration
 
 k8s-mcp follows the standard MCP protocol and can be integrated into any MCP-compatible application:
 

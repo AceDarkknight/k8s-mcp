@@ -1,7 +1,7 @@
 package main
 
 import (
-	"k8s-mcp/cmd/client/cmd"
+	"github.com/AceDarkknight/k8s-mcp/cmd/client/cmd"
 )
 
 func main() {
