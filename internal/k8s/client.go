@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/AceDarkknight/k8s-mcp/pkg/logger"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -12,18 +14,34 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+// Options 定义 ClusterManager 的配置选项
+type Options struct {
+	// Logger 日志接口，如果为 nil 则使用默认的 console logger
+	Logger logger.Logger
+}
+
 // ClusterManager manages multiple k8s clusters
 type ClusterManager struct {
 	clusters       map[string]*kubernetes.Clientset
 	configs        map[string]*rest.Config
 	currentCluster string
+	logger         logger.Logger
 }
 
 // NewClusterManager creates a new cluster manager
-func NewClusterManager() *ClusterManager {
+// 如果 opts 为 nil 或 opts.Logger 为 nil，则使用默认的 console logger
+func NewClusterManager(opts *Options) *ClusterManager {
+	var log logger.Logger
+	if opts != nil && opts.Logger != nil {
+		log = opts.Logger
+	} else {
+		log = logger.NewDefaultConsoleLogger()
+	}
+
 	return &ClusterManager{
 		clusters: make(map[string]*kubernetes.Clientset),
 		configs:  make(map[string]*rest.Config),
+		logger:   log,
 	}
 }
 

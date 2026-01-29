@@ -83,6 +83,25 @@ The server supports configuration via command-line flags and environment variabl
 | `--token` | `MCP_TOKEN` | | Authentication token (required) |
 | `--kubeconfig` | `MCP_KUBECONFIG` | | Path to kubeconfig file (optional) |
 
+### Logging Configuration
+
+The server provides a comprehensive logging system based on Uber Zap and Lumberjack.
+
+| Flag | Environment Variable | Default | Description |
+|-------|---------------------|---------|-------------|
+| `--log-level` | | info | Log level (debug, info, warn, error) |
+| `--log-format` | | text | Log format (json, text) |
+| `--log-to-file` | | false (Server: true) | Enable logging to file (Server defaults to true) |
+| `--log-file` | | logs/app.log | Log file path |
+| `--log-max-size` | | 100 | Maximum size of each log file (MB) |
+| `--log-max-backups`| | 3 | Maximum number of old log files to retain |
+| `--log-max-age` | | 30 | Maximum number of days to retain old log files |
+| `--log-compress` | | true | Whether to compress old log files |
+| `--log-caller` | | true | Whether to include caller information (file and line) |
+| `--log-stacktrace` | | false | Whether to include stacktrace on error level |
+
+When `--log-to-file` is enabled, logs are written to both stdout/stderr and the specified log file. The logging system automatically handles log rotation based on size, age, and number of backups.
+
 ### Client Configuration
 
 | Flag | Environment Variable | Default | Description |

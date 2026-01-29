@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
+	"github.com/AceDarkknight/k8s-mcp/pkg/logger"
 	"github.com/AceDarkknight/k8s-mcp/pkg/mcpclient"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -21,6 +21,9 @@ var (
 	cfgServerURL          string
 	cfgAuthToken          string
 	cfgInsecureSkipVerify bool
+
+	// 日志配置
+	logConfig = logger.NewDefaultConfig()
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -30,6 +33,16 @@ var rootCmd = &cobra.Command{
 	Short: "Kubernetes MCP Client",
 	Long: `k8s-mcp-client 是一个用于连接到 k8s-mcp 服务器的测试客户端。
 它支持通过 HTTP/SSE 连接，并带有 Token 认证。`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// 初始化日志系统
+		// 从 viper 获取 log-to-file 标志的值
+		logToFile := viper.GetBool("log-to-file")
+		logger.AdjustOutputPaths(logConfig, logToFile)
+		if err := logger.Init(logConfig); err != nil {
+			return fmt.Errorf("failed to initialize logger: %w", err)
+		}
+		return nil
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		executeClient()
 	},
@@ -55,6 +68,10 @@ func init() {
 	viper.BindPFlag("server", rootCmd.Flags().Lookup("server"))
 	viper.BindPFlag("token", rootCmd.Flags().Lookup("token"))
 	viper.BindPFlag("insecure-skip-verify", rootCmd.Flags().Lookup("insecure-skip-verify"))
+
+	// Bind logger flags
+	// 绑定日志标志（包括 log-to-file）
+	logger.BindFlags(rootCmd.PersistentFlags(), logConfig)
 }
 
 // initConfig initializes configuration from flags and environment variables
@@ -70,6 +87,9 @@ func initConfig() {
 // executeClient starts the MCP client
 // executeClient 启动 MCP 客户端
 func executeClient() {
+	// 获取 logger 实例
+	log := logger.Get()
+
 	// Read configuration from viper (flags override env vars)
 	// 从 viper 读取配置（标志覆盖环境变量）
 	serverURL := viper.GetString("server")
@@ -79,7 +99,8 @@ func executeClient() {
 	// Validate required parameters
 	// 验证必需参数
 	if authToken == "" {
-		log.Fatal("Error: --token is required")
+		log.Error("--token is required")
+		os.Exit(1)
 	}
 
 	// Create client configuration
@@ -94,7 +115,8 @@ func executeClient() {
 	// 创建客户端实例
 	client, err := mcpclient.NewClient(config, mcpclient.WithUserAgent("k8s-mcp-client/1.0.0"))
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Error("Failed to create client", "error", err)
+		os.Exit(1)
 	}
 	defer client.Close()
 
@@ -102,7 +124,8 @@ func executeClient() {
 	// 连接到服务器
 	ctx := context.Background()
 	if err := client.Connect(ctx); err != nil {
-		log.Fatalf("Connection failed: %v", err)
+		log.Error("Connection failed", "error", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Connected to: %s\n", serverURL)
@@ -127,7 +150,7 @@ func executeClient() {
 		}
 
 		if err := handleCommand(ctx, client, input); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			log.Error("Command execution failed", "error", err)
 		}
 	}
 }
@@ -135,6 +158,9 @@ func executeClient() {
 // handleCommand processes user commands
 // handleCommand 处理用户命令
 func handleCommand(ctx context.Context, client *mcpclient.Client, input string) error {
+	// 获取 logger 实例
+	log := logger.Get()
+
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
 		return nil
@@ -155,7 +181,7 @@ func handleCommand(ctx context.Context, client *mcpclient.Client, input string) 
 		}
 		return callTool(ctx, client, parts[1], parts[2:])
 	default:
-		fmt.Printf("Unknown command: %s. Type 'help' for available commands.\n", command)
+		log.Error("Unknown command", "command", command)
 		return nil
 	}
 }
@@ -189,6 +215,9 @@ func listTools(ctx context.Context, client *mcpclient.Client) error {
 }
 
 func callTool(ctx context.Context, client *mcpclient.Client, toolName string, args []string) error {
+	// 获取 logger 实例
+	log := logger.Get()
+
 	// Parse simple arguments (key=value format)
 	// 解析简单参数（key=value 格式）
 	arguments := make(map[string]interface{})
@@ -209,7 +238,7 @@ func callTool(ctx context.Context, client *mcpclient.Client, toolName string, ar
 	// Display result
 	// 显示结果
 	if result.IsError {
-		fmt.Println("Tool execution error:")
+		log.Error("Tool execution error", "tool", toolName)
 	}
 
 	for _, content := range result.Content {

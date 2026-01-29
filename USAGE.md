@@ -231,9 +231,14 @@ call check_rbac_permission verb=get resource=pods namespace=default
    - 检查 Token 是否正确
    - 如果使用自签名证书，确保客户端使用 `--insecure-skip-verify`
 
-### 调试模式
+### 调试和日志
 
-服务器会将日志信息输出到 stdout，在测试客户端中可以看到这些日志。
+服务器提供了详细的日志输出，有助于排查连接和认证问题。
+
+```bash
+# 启动服务器并启用文件日志
+./bin/k8s-mcp-server --token my-secret-token --log-to-file --log-level debug --log-file logs/server.log
+```
 
 ### 命令行参数和环境变量
 
@@ -247,6 +252,16 @@ call check_rbac_permission verb=get resource=pods namespace=default
 | `--insecure` | `MCP_INSECURE` | false | 使用不安全的 HTTP 模式（默认为 HTTPS） |
 | `--token` | `MCP_TOKEN` | | 认证 Token（必需） |
 | `--kubeconfig` | `MCP_KUBECONFIG` | | kubeconfig 文件路径（可选） |
+| `--log-level` | | info | 日志级别 (debug, info, warn, error) |
+| `--log-format` | | text | 日志格式 (json, text) |
+| `--log-to-file` | | false | 是否启用日志文件输出 |
+| `--log-file` | | logs/app.log | 日志文件路径 |
+| `--log-max-size` | | 100 | 单个日志文件最大大小 (MB) |
+| `--log-max-backups`| | 3 | 保留的旧日志文件最大数量 |
+| `--log-max-age` | | 30 | 保留旧日志文件的最大天数 |
+| `--log-compress` | | true | 是否压缩旧日志文件 |
+| `--log-caller` | | true | 是否记录调用者信息 |
+| `--log-stacktrace` | | false | 是否在错误级别记录堆栈信息 |
 
 #### 客户端参数
 

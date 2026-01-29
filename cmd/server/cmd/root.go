@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 
 	"github.com/AceDarkknight/k8s-mcp/internal/mcp"
+	"github.com/AceDarkknight/k8s-mcp/pkg/logger"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,6 +21,9 @@ var (
 	cfgInsecure   bool
 	cfgAuthToken  string
 	cfgConfigPath string
+
+	// 日志配置
+	logConfig = logger.NewDefaultConfig()
 )
 
 // initConfig initializes configuration from flags and environment variables
@@ -55,6 +59,10 @@ func init() {
 	viper.BindPFlag("insecure", rootCmd.Flags().Lookup("insecure"))
 	viper.BindPFlag("token", rootCmd.Flags().Lookup("token"))
 	viper.BindPFlag("kubeconfig", rootCmd.Flags().Lookup("kubeconfig"))
+
+	// Bind logger flags
+	// 绑定日志标志（包括 log-to-file）
+	logger.BindFlags(rootCmd.PersistentFlags(), logConfig)
 }
 
 // rootCmd represents the base command when called without any subcommands
@@ -64,6 +72,20 @@ var rootCmd = &cobra.Command{
 	Short: "Kubernetes MCP Server",
 	Long: `k8s-mcp-server 是一个用于 Kubernetes 集群管理的 MCP 服务器。
 它通过 HTTP/SSE 提供对 Kubernetes 资源的只读访问，并支持 Token 认证。`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// 初始化日志系统
+		// Server 端默认启用日志文件输出
+		// 从 viper 获取 log-to-file 标志的值，如果没有设置则默认为 true
+		logToFile := true
+		if cmd.Flags().Changed("log-to-file") {
+			logToFile = viper.GetBool("log-to-file")
+		}
+		logger.AdjustOutputPaths(logConfig, logToFile)
+		if err := logger.Init(logConfig); err != nil {
+			return fmt.Errorf("failed to initialize logger: %w", err)
+		}
+		return nil
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		executeServer()
 	},
@@ -78,6 +100,9 @@ func Execute() error {
 // executeServer starts the MCP server
 // executeServer 启动 MCP 服务器
 func executeServer() {
+	// 获取 logger 实例
+	log := logger.Get()
+
 	// Read configuration from viper (flags override env vars)
 	// 从 viper 读取配置（标志覆盖环境变量）
 	port := viper.GetString("port")
@@ -90,11 +115,13 @@ func executeServer() {
 	// Validate required parameters
 	// 验证必需参数
 	if authToken == "" {
-		log.Fatal("Error: --token is required")
+		log.Error("--token is required")
+		os.Exit(1)
 	}
 
 	if !insecure && (certPath == "" || keyPath == "") {
-		log.Fatal("Error: --cert and --key are required for HTTPS mode (default). Use --insecure for HTTP mode.")
+		log.Error("--cert and --key are required for HTTPS mode (default). Use --insecure for HTTP mode.")
+		os.Exit(1)
 	}
 
 	// Create MCP server
@@ -108,8 +135,8 @@ func executeServer() {
 	// Load kubeconfig if provided or use default
 	// 加载 kubeconfig（如果提供）或使用默认值
 	if err := server.LoadKubeConfig(configPath); err != nil {
-		log.Printf("Warning: Failed to load kubeconfig: %v", err)
-		log.Println("Server will start but won't be able to connect to clusters until kubeconfig is properly configured")
+		log.Warn("Failed to load kubeconfig", "error", err)
+		log.Info("Server will start but won't be able to connect to clusters until kubeconfig is properly configured")
 	}
 
 	// Create HTTP handler with authentication
@@ -119,16 +146,18 @@ func executeServer() {
 	// Start server
 	// 启动服务器
 	addr := fmt.Sprintf(":%s", port)
-	log.Printf("Starting k8s MCP server on %s...", addr)
+	log.Info("Starting k8s MCP server", "address", addr)
 	if insecure {
-		log.Println("Running in INSECURE HTTP mode")
+		log.Info("Running in INSECURE HTTP mode")
 		if err := http.ListenAndServe(addr, handler); err != nil {
-			log.Fatalf("Server error: %v", err)
+			log.Error("Server error", "error", err)
+			os.Exit(1)
 		}
 	} else {
-		log.Println("Running in SECURE HTTPS mode")
+		log.Info("Running in SECURE HTTPS mode")
 		if err := http.ListenAndServeTLS(addr, certPath, keyPath, handler); err != nil {
-			log.Fatalf("Server error: %v", err)
+			log.Error("Server error", "error", err)
+			os.Exit(1)
 		}
 	}
 }

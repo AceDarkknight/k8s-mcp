@@ -77,6 +77,25 @@ openssl req -x509 -newkey rsa:4096 -nodes -days 365 -keyout key.pem -out cert.pe
 - `--token`: 认证 Token（必需）
 - `--kubeconfig`: kubeconfig 文件路径（可选，未指定则使用默认值）
 
+### 日志配置
+
+服务器提供基于 Uber Zap 和 Lumberjack 的全面日志系统。
+
+| 标志 | 环境变量 | 默认值 | 描述 |
+|-------|---------------------|---------|-------------|
+| `--log-level` | | info | 日志级别 (debug, info, warn, error) |
+| `--log-format` | | text | 日志格式 (json, text) |
+| `--log-to-file` | | false (Server: true) | 是否启用日志文件输出（Server 端默认为 true） |
+| `--log-file` | | logs/app.log | 日志文件路径 |
+| `--log-max-size` | | 100 | 单个日志文件最大大小 (MB) |
+| `--log-max-backups`| | 3 | 保留的旧日志文件最大数量 |
+| `--log-max-age` | | 30 | 保留旧日志文件的最大天数 |
+| `--log-compress` | | true | 是否压缩旧日志文件 |
+| `--log-caller` | | true | 是否记录调用者信息（文件名和行号） |
+| `--log-stacktrace` | | false | 是否在错误级别记录堆栈信息 |
+
+当启用 `--log-to-file` 时，日志将同时输出到控制台和指定的日志文件。日志系统会自动根据大小、日期和备份数量处理日志轮转。
+
 ### 客户端标志
 
 - `--server`: MCP 服务器 URL（默认：https://localhost:8443）

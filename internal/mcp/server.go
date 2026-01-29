@@ -26,7 +26,8 @@ type Server struct {
 // NewServer creates a new MCP server instance
 // NewServer 创建一个新的 MCP 服务器实例
 func NewServer(authToken string) *Server {
-	cm := k8s.NewClusterManager()
+	// 创建 ClusterManager，传入 nil 使用默认的 console logger
+	cm := k8s.NewClusterManager(nil)
 	resourceOps := k8s.NewResourceOperations(cm)
 
 	server := &Server{
