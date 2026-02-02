@@ -63,9 +63,6 @@ coverage.out
 tmp/
 temp/
 
-# Go modules directory
-pkg/
-
 # Binary release packages
 *.tar.gz
 *.zip
