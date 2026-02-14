@@ -137,6 +137,13 @@ k8s-mcp 提供以下工具，AI 可以自动调用：
 示例：call list_nodes
 ```
 
+#### `list_namespaces`
+列出集群中的所有命名空间。
+```
+参数：无
+示例：call list_namespaces
+```
+
 #### `get_resource`
 获取特定资源的详细信息（JSON 格式）。Secret 数据将被脱敏。
 ```

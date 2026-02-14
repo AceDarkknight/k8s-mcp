@@ -118,6 +118,7 @@ The server provides the following tools:
 
 - `get_cluster_status`: Get cluster status information (version, node count, namespace count)
 - `list_nodes`: List all nodes in cluster
+- `list_namespaces`: List all namespaces in cluster
 
 ### Resource Management
 

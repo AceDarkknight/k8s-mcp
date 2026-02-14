@@ -110,6 +110,7 @@ openssl req -x509 -newkey rsa:4096 -nodes -days 365 -keyout key.pem -out cert.pe
 
 - `get_cluster_status`: 获取集群状态信息（版本、节点数、命名空间数）
 - `list_nodes`: 列出集群中的所有节点
+- `list_namespaces`: 列出集群中的所有命名空间
 
 ### 资源管理
 

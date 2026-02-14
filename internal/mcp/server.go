@@ -94,6 +94,12 @@ func (s *Server) RegisterTools() {
 		Description: "List all nodes in the cluster",
 	}, s.handleListNodes)
 
+	// list_namespaces
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_namespaces",
+		Description: "List all namespaces in the cluster",
+	}, s.handleListNamespaces)
+
 	// get_resource
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_resource",
@@ -213,6 +219,12 @@ type DeploymentsResult struct {
 // NodesResult 表示 list_nodes 工具的结果
 type NodesResult struct {
 	Nodes string `json:"nodes"`
+}
+
+// NamespacesResult represents the result of list_namespaces tool
+// NamespacesResult 表示 list_namespaces 工具的结果
+type NamespacesResult struct {
+	Namespaces string `json:"namespaces"`
 }
 
 // ResourceResult represents the result of get_resource tool
@@ -370,6 +382,30 @@ func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, 
 
 	return nil, NodesResult{
 		Nodes: nodeList,
+	}, nil
+}
+
+// handleListNamespaces handles list_namespaces tool
+// handleListNamespaces 处理 list_namespaces 工具
+func (s *Server) handleListNamespaces(ctx context.Context, req *mcp.CallToolRequest, input struct{}) (
+	*mcp.CallToolResult,
+	NamespacesResult,
+	error,
+) {
+	namespaces, err := s.resourceOps.ListNamespaces(ctx, "")
+	if err != nil {
+		return nil, NamespacesResult{}, fmt.Errorf("failed to list namespaces: %w", err)
+	}
+
+	// Format the output
+	// 格式化输出
+	namespaceList := "Namespaces:\n"
+	for _, ns := range namespaces {
+		namespaceList += fmt.Sprintf("  - %s (%s) - %s\n", ns.Name, ns.Kind, ns.Status)
+	}
+
+	return nil, NamespacesResult{
+		Namespaces: namespaceList,
 	}, nil
 }
 
