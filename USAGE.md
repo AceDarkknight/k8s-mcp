@@ -97,6 +97,8 @@ export MCP_CLIENT_TOKEN=my-secret-token
 
 ### 1. Tools（工具）
 
+有关每个工具的详细 API 文档，请参阅 [API 文档](docs/api.md)。
+
 k8s-mcp 提供以下工具，AI 可以自动调用：
 
 #### `get_cluster_status`

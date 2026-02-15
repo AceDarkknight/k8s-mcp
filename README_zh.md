@@ -104,6 +104,8 @@ openssl req -x509 -newkey rsa:4096 -nodes -days 365 -keyout key.pem -out cert.pe
 
 ## MCP 工具
 
+有关每个工具的详细 API 文档，包括函数签名、参数说明和示例代码，请参阅 [API 文档](docs/api.md)。
+
 服务器提供以下工具：
 
 ### 集群管理
