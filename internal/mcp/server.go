@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"encoding/json"
+
 	"github.com/AceDarkknight/k8s-mcp/internal/k8s"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -258,6 +260,18 @@ type RBACPermissionResult struct {
 	Reason  string `json:"reason"`
 }
 
+// serializeResourceList serializes a list of ResourceInfo to JSON string
+// serializeResourceList 将 ResourceInfo 列表序列化为 JSON 字符串
+func serializeResourceList(resources []k8s.ResourceInfo) (string, error) {
+	// Use json.Marshal for compact JSON output (no indentation/newlines)
+	// 使用 json.Marshal 生成紧凑的 JSON 输出（无缩进和换行）
+	data, err := json.Marshal(resources)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize resource list: %w", err)
+	}
+	return string(data), nil
+}
+
 // Tool handlers
 // 工具处理函数
 
@@ -297,15 +311,15 @@ func (s *Server) handleListPods(ctx context.Context, req *mcp.CallToolRequest, i
 		return nil, PodsResult{}, fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	podList := "Pods:\n"
-	for _, pod := range pods {
-		podList += fmt.Sprintf("  - %s/%s (%s) - %s\n", pod.Namespace, pod.Name, pod.Kind, pod.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(pods)
+	if err != nil {
+		return nil, PodsResult{}, fmt.Errorf("failed to serialize pods: %w", err)
 	}
 
 	return nil, PodsResult{
-		Pods: podList,
+		Pods: jsonStr,
 	}, nil
 }
 
@@ -323,15 +337,15 @@ func (s *Server) handleListServices(ctx context.Context, req *mcp.CallToolReques
 		return nil, ServicesResult{}, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	serviceList := "Services:\n"
-	for _, svc := range services {
-		serviceList += fmt.Sprintf("  - %s/%s (%s) - %s\n", svc.Namespace, svc.Name, svc.Kind, svc.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(services)
+	if err != nil {
+		return nil, ServicesResult{}, fmt.Errorf("failed to serialize services: %w", err)
 	}
 
 	return nil, ServicesResult{
-		Services: serviceList,
+		Services: jsonStr,
 	}, nil
 }
 
@@ -349,15 +363,15 @@ func (s *Server) handleListDeployments(ctx context.Context, req *mcp.CallToolReq
 		return nil, DeploymentsResult{}, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	deploymentList := "Deployments:\n"
-	for _, dep := range deployments {
-		deploymentList += fmt.Sprintf("  - %s/%s (%s) - %s\n", dep.Namespace, dep.Name, dep.Kind, dep.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(deployments)
+	if err != nil {
+		return nil, DeploymentsResult{}, fmt.Errorf("failed to serialize deployments: %w", err)
 	}
 
 	return nil, DeploymentsResult{
-		Deployments: deploymentList,
+		Deployments: jsonStr,
 	}, nil
 }
 
@@ -373,15 +387,15 @@ func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, 
 		return nil, NodesResult{}, fmt.Errorf("failed to list nodes: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	nodeList := "Nodes:\n"
-	for _, node := range nodes {
-		nodeList += fmt.Sprintf("  - %s (%s) - %s\n", node.Name, node.Kind, node.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(nodes)
+	if err != nil {
+		return nil, NodesResult{}, fmt.Errorf("failed to serialize nodes: %w", err)
 	}
 
 	return nil, NodesResult{
-		Nodes: nodeList,
+		Nodes: jsonStr,
 	}, nil
 }
 
@@ -397,15 +411,15 @@ func (s *Server) handleListNamespaces(ctx context.Context, req *mcp.CallToolRequ
 		return nil, NamespacesResult{}, fmt.Errorf("failed to list namespaces: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	namespaceList := "Namespaces:\n"
-	for _, ns := range namespaces {
-		namespaceList += fmt.Sprintf("  - %s (%s) - %s\n", ns.Name, ns.Kind, ns.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(namespaces)
+	if err != nil {
+		return nil, NamespacesResult{}, fmt.Errorf("failed to serialize namespaces: %w", err)
 	}
 
 	return nil, NamespacesResult{
-		Namespaces: namespaceList,
+		Namespaces: jsonStr,
 	}, nil
 }
 
@@ -491,15 +505,15 @@ func (s *Server) handleGetEvents(ctx context.Context, req *mcp.CallToolRequest, 
 		return nil, EventsResult{}, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	// Format the output
-	// 格式化输出
-	eventList := "Events:\n"
-	for _, event := range events {
-		eventList += fmt.Sprintf("  - %s/%s (%s) - %s\n", event.Namespace, event.Name, event.Kind, event.Status)
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(events)
+	if err != nil {
+		return nil, EventsResult{}, fmt.Errorf("failed to serialize events: %w", err)
 	}
 
 	return nil, EventsResult{
-		Events: eventList,
+		Events: jsonStr,
 	}, nil
 }
 

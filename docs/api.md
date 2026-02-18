@@ -4,6 +4,8 @@
 
 ## 目录
 
+- [数据结构](#数据结构)
+    - [ResourceInfo](#resourceinfo)
 - [集群管理](#集群管理)
     - [get_cluster_status](#get_cluster_status)
     - [list_nodes](#list_nodes)
@@ -19,6 +21,34 @@
     - [get_pod_logs](#get_pod_logs)
 - [安全](#安全)
     - [check_rbac_permission](#check_rbac_permission)
+
+---
+
+## 数据结构
+
+### ResourceInfo
+
+`ResourceInfo` 是所有列表工具返回的核心数据结构，包含 Kubernetes 资源的基本信息。
+
+```go
+type ResourceInfo struct {
+    Name      string            `json:"name"`
+    Namespace string            `json:"namespace,omitempty"`
+    Kind      string            `json:"kind"`
+    Status    string            `json:"status,omitempty"`
+    Age       string            `json:"age,omitempty"`
+    Labels    map[string]string `json:"labels,omitempty"`
+}
+```
+
+| 字段 | 类型 | 描述 |
+|:---|:---|:---|
+| `name` | string | 资源名称 |
+| `namespace` | string | 命名空间（集群级别资源此项为空） |
+| `kind` | string | 资源类型（如 Pod, Service, Deployment 等） |
+| `status` | string | 资源状态（不同资源类型状态格式不同） |
+| `age` | string | 资源创建时间 |
+| `labels` | map | 资源标签 |
 
 ---
 
@@ -68,11 +98,31 @@ fmt.Println(result.Content[0].Text)
 
 #### 返回值
 
-返回 `NodesResult` 对象，包含格式化的节点列表。
+返回 `NodesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
 
 ```json
 {
-  "nodes": "Nodes:\n  - node-1 (Node) - Ready\n  - node-2 (Node) - Ready"
+  "nodes": [
+    {
+      "name": "node-1",
+      "kind": "Node",
+      "status": "Ready",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "kubernetes.io/hostname": "node-1",
+        "node-role.kubernetes.io/master": ""
+      }
+    },
+    {
+      "name": "node-2",
+      "kind": "Node",
+      "status": "Ready",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "kubernetes.io/hostname": "node-2"
+      }
+    }
+  ]
 }
 ```
 
@@ -80,6 +130,12 @@ fmt.Println(result.Content[0].Text)
 
 ```go
 result, err := client.CallTool(ctx, "list_nodes", nil)
+if err != nil {
+    log.Fatal(err)
+}
+// 解析 JSON
+var nodes []k8s.ResourceInfo
+json.Unmarshal([]byte(result.Content[0].Text), &nodes)
 ```
 
 ### list_namespaces
@@ -95,11 +151,30 @@ result, err := client.CallTool(ctx, "list_nodes", nil)
 
 #### 返回值
 
-返回 `NamespacesResult` 对象，包含格式化的命名空间列表。
+返回 `NamespacesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
 
 ```json
 {
-  "namespaces": "Namespaces:\n  - default (Namespace) - Active\n  - kube-system (Namespace) - Active"
+  "namespaces": [
+    {
+      "name": "default",
+      "kind": "Namespace",
+      "status": "Active",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "kubernetes.io/metadata.name": "default"
+      }
+    },
+    {
+      "name": "kube-system",
+      "kind": "Namespace",
+      "status": "Active",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "kubernetes.io/metadata.name": "kube-system"
+      }
+    }
+  ]
 }
 ```
 
@@ -128,11 +203,32 @@ result, err := client.CallTool(ctx, "list_namespaces", nil)
 
 #### 返回值
 
-返回 `PodsResult` 对象。
+返回 `PodsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
 
 ```json
 {
-  "pods": "Pods:\n  - default/nginx-pod (Pod) - Running"
+  "pods": [
+    {
+      "name": "nginx-pod",
+      "namespace": "default",
+      "kind": "Pod",
+      "status": "Running",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "app": "nginx"
+      }
+    },
+    {
+      "name": "redis-pod",
+      "namespace": "default",
+      "kind": "Pod",
+      "status": "Running",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "app": "redis"
+      }
+    }
+  ]
 }
 ```
 
@@ -160,11 +256,33 @@ result, err := client.CallTool(ctx, "list_pods", args)
 
 #### 返回值
 
-返回 `ServicesResult` 对象。
+返回 `ServicesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
 
 ```json
 {
-  "services": "Services:\n  - default/kubernetes (Service) - Type: ClusterIP"
+  "services": [
+    {
+      "name": "kubernetes",
+      "namespace": "default",
+      "kind": "Service",
+      "status": "Type: ClusterIP",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "component": "apiserver",
+        "provider": "kubernetes"
+      }
+    },
+    {
+      "name": "nginx-service",
+      "namespace": "default",
+      "kind": "Service",
+      "status": "Type: LoadBalancer",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "app": "nginx"
+      }
+    }
+  ]
 }
 ```
 
@@ -192,11 +310,32 @@ result, err := client.CallTool(ctx, "list_services", args)
 
 #### 返回值
 
-返回 `DeploymentsResult` 对象。
+返回 `DeploymentsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。状态格式为 `就绪副本数/总副本数`。
 
 ```json
 {
-  "deployments": "Deployments:\n  - default/nginx-deployment (Deployment) - 3/3"
+  "deployments": [
+    {
+      "name": "nginx-deployment",
+      "namespace": "default",
+      "kind": "Deployment",
+      "status": "3/3",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "app": "nginx"
+      }
+    },
+    {
+      "name": "redis-deployment",
+      "namespace": "default",
+      "kind": "Deployment",
+      "status": "1/1",
+      "age": "2024-01-01 00:00:00 +0000 UTC",
+      "labels": {
+        "app": "redis"
+      }
+    }
+  ]
 }
 ```
 
@@ -226,11 +365,11 @@ result, err := client.CallTool(ctx, "list_deployments", args)
 
 #### 返回值
 
-返回 `ResourceResult` 对象，包含资源的 JSON 字符串。
+返回 `ResourceResult` 对象，包含资源的完整 JSON 字符串。
 
 ```json
 {
-  "resource": "{\n  \"kind\": \"Pod\",\n  \"apiVersion\": \"v1\",\n  ...\n}"
+  "resource": "{\n  \"kind\": \"Pod\",\n  \"apiVersion\": \"v1\",\n  \"metadata\": {\n    \"name\": \"nginx-pod\",\n    \"namespace\": \"default\",\n    ...\n  },\n  \"spec\": {\n    ...\n  },\n  \"status\": {\n    ...\n  }\n}"
 }
 ```
 
@@ -300,11 +439,26 @@ result, err := client.CallTool(ctx, "get_resource_yaml", args)
 
 #### 返回值
 
-返回 `EventsResult` 对象。
+返回 `EventsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。状态格式为 `事件类型: 原因`。
 
 ```json
 {
-  "events": "Events:\n  - default/nginx-pod.1234 (Event) - Normal: Scheduled"
+  "events": [
+    {
+      "name": "nginx-pod.12345678",
+      "namespace": "default",
+      "kind": "Event",
+      "status": "Normal: Scheduled",
+      "age": "2024-01-01 00:00:00 +0000 UTC"
+    },
+    {
+      "name": "nginx-pod.87654321",
+      "namespace": "default",
+      "kind": "Event",
+      "status": "Normal: Pulled",
+      "age": "2024-01-01 00:00:01 +0000 UTC"
+    }
+  ]
 }
 ```
 
@@ -341,7 +495,7 @@ result, err := client.CallTool(ctx, "get_events", args)
 
 ```json
 {
-  "logs": "2023-10-01T12:00:00Z INFO Starting application..."
+  "logs": "2023-10-01T12:00:00Z INFO Starting application...\n2023-10-01T12:00:01Z INFO Server listening on port 8080"
 }
 ```
 
