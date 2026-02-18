@@ -131,6 +131,18 @@ func (s *Server) RegisterTools() {
 		Name:        "check_rbac_permission",
 		Description: "Check if the current user has permission to perform an action (kubectl auth can-i). Parameters: verb (string, required, e.g. 'get', 'list'), resource (string, required, e.g. 'pods'), namespace (string, required)",
 	}, s.handleCheckRBACPermission)
+
+	// list_configmaps
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_configmaps",
+		Description: "List configmaps in a namespace. Parameters: namespace (string, required)",
+	}, s.handleListConfigMaps)
+
+	// list_statefulsets
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_statefulsets",
+		Description: "List statefulsets in a namespace. Parameters: namespace (string, required)",
+	}, s.handleListStatefulSets)
 }
 
 // AuthMiddleware creates an authentication middleware
@@ -229,6 +241,18 @@ type NamespacesResult struct {
 	Namespaces string `json:"namespaces"`
 }
 
+// ConfigMapsResult represents the result of list_configmaps tool
+// ConfigMapsResult 表示 list_configmaps 工具的结果
+type ConfigMapsResult struct {
+	ConfigMaps string `json:"configmaps"`
+}
+
+// StatefulSetsResult represents the result of list_statefulsets tool
+// StatefulSetsResult 表示 list_statefulsets 工具的结果
+type StatefulSetsResult struct {
+	StatefulSets string `json:"statefulsets"`
+}
+
 // ResourceResult represents the result of get_resource tool
 // ResourceResult 表示 get_resource 工具的结果
 type ResourceResult struct {
@@ -260,14 +284,13 @@ type RBACPermissionResult struct {
 	Reason  string `json:"reason"`
 }
 
-// serializeResourceList serializes a list of ResourceInfo to JSON string
-// serializeResourceList 将 ResourceInfo 列表序列化为 JSON 字符串
-func serializeResourceList(resources []k8s.ResourceInfo) (string, error) {
+// serializeResourceList serializes a list of resources to JSON string
+// serializeResourceList 将资源列表序列化为 JSON 字符串
+func serializeResourceList(resources interface{}) (string, error) {
 	// Use json.Marshal for compact JSON output (no indentation/newlines)
-	// 使用 json.Marshal 生成紧凑的 JSON 输出（无缩进和换行）
 	data, err := json.Marshal(resources)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize resource list: %w", err)
+		return "", fmt.Errorf("failed to serialize resources: %w", err)
 	}
 	return string(data), nil
 }
@@ -382,7 +405,7 @@ func (s *Server) handleListNodes(ctx context.Context, req *mcp.CallToolRequest, 
 	NodesResult,
 	error,
 ) {
-	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNode, "", "")
+	nodes, err := s.resourceOps.ListResourcesByType(ctx, k8s.ResourceTypeNodes, "", "")
 	if err != nil {
 		return nil, NodesResult{}, fmt.Errorf("failed to list nodes: %w", err)
 	}
@@ -577,6 +600,58 @@ func (s *Server) handleCheckRBACPermission(ctx context.Context, req *mcp.CallToo
 	}
 
 	return nil, result, nil
+}
+
+// handleListConfigMaps handles list_configmaps tool
+// handleListConfigMaps 处理 list_configmaps 工具
+func (s *Server) handleListConfigMaps(ctx context.Context, req *mcp.CallToolRequest, input struct {
+	Namespace string `json:"namespace"`
+}) (
+	*mcp.CallToolResult,
+	ConfigMapsResult,
+	error,
+) {
+	configMaps, err := s.resourceOps.ListConfigMaps(ctx, input.Namespace, "")
+	if err != nil {
+		return nil, ConfigMapsResult{}, fmt.Errorf("failed to list configmaps: %w", err)
+	}
+
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(configMaps)
+	if err != nil {
+		return nil, ConfigMapsResult{}, fmt.Errorf("failed to serialize configmaps: %w", err)
+	}
+
+	return nil, ConfigMapsResult{
+		ConfigMaps: jsonStr,
+	}, nil
+}
+
+// handleListStatefulSets handles list_statefulsets tool
+// handleListStatefulSets 处理 list_statefulsets 工具
+func (s *Server) handleListStatefulSets(ctx context.Context, req *mcp.CallToolRequest, input struct {
+	Namespace string `json:"namespace"`
+}) (
+	*mcp.CallToolResult,
+	StatefulSetsResult,
+	error,
+) {
+	statefulSets, err := s.resourceOps.ListStatefulSets(ctx, input.Namespace, "")
+	if err != nil {
+		return nil, StatefulSetsResult{}, fmt.Errorf("failed to list statefulsets: %w", err)
+	}
+
+	// Serialize to JSON
+	// 序列化为 JSON
+	jsonStr, err := serializeResourceList(statefulSets)
+	if err != nil {
+		return nil, StatefulSetsResult{}, fmt.Errorf("failed to serialize statefulsets: %w", err)
+	}
+
+	return nil, StatefulSetsResult{
+		StatefulSets: jsonStr,
+	}, nil
 }
 
 // redactSecretData redacts sensitive data from secret resources

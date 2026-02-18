@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,22 +17,24 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypePods        ResourceType = "pods"
-	ResourceTypePod         ResourceType = "pod"
-	ResourceTypeServices    ResourceType = "services"
-	ResourceTypeService     ResourceType = "service"
-	ResourceTypeDeployments ResourceType = "deployments"
-	ResourceTypeDeployment  ResourceType = "deployment"
-	ResourceTypeConfigMaps  ResourceType = "configmaps"
-	ResourceTypeConfigMap   ResourceType = "configmap"
-	ResourceTypeSecrets     ResourceType = "secrets"
-	ResourceTypeSecret      ResourceType = "secret"
-	ResourceTypeNamespaces  ResourceType = "namespaces"
-	ResourceTypeNamespace   ResourceType = "namespace"
-	ResourceTypeNodes       ResourceType = "nodes"
-	ResourceTypeNode        ResourceType = "node"
-	ResourceTypeEvents      ResourceType = "events"
-	ResourceTypeEvent       ResourceType = "event"
+	ResourceTypePods         ResourceType = "pods"
+	ResourceTypePod          ResourceType = "pod"
+	ResourceTypeServices     ResourceType = "services"
+	ResourceTypeService      ResourceType = "service"
+	ResourceTypeDeployments  ResourceType = "deployments"
+	ResourceTypeDeployment   ResourceType = "deployment"
+	ResourceTypeConfigMaps   ResourceType = "configmaps"
+	ResourceTypeConfigMap    ResourceType = "configmap"
+	ResourceTypeSecrets      ResourceType = "secrets"
+	ResourceTypeSecret       ResourceType = "secret"
+	ResourceTypeNamespaces   ResourceType = "namespaces"
+	ResourceTypeNamespace    ResourceType = "namespace"
+	ResourceTypeNodes        ResourceType = "nodes"
+	ResourceTypeNode         ResourceType = "node"
+	ResourceTypeEvents       ResourceType = "events"
+	ResourceTypeEvent        ResourceType = "event"
+	ResourceTypeStatefulSets ResourceType = "statefulsets"
+	ResourceTypeStatefulSet  ResourceType = "statefulset"
 )
 
 // ResourceInfo holds basic information about a k8s resource
@@ -57,7 +60,7 @@ func NewResourceOperations(cm *ClusterManager) *ResourceOperations {
 }
 
 // ListNamespaces lists all namespaces in current cluster
-func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName string) ([]Namespace, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -75,22 +78,20 @@ func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName st
 		return nil, fmt.Errorf("failed to list namespaces: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Namespace
 	for _, ns := range namespaces.Items {
-		resources = append(resources, ResourceInfo{
+		results = append(results, Namespace{
 			Name:   ns.Name,
-			Kind:   "Namespace",
 			Status: string(ns.Status.Phase),
 			Age:    ns.CreationTimestamp.String(),
-			Labels: ns.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
 }
 
 // ListPods lists pods in a namespace
-func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterName string) ([]Pod, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -108,19 +109,48 @@ func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterNa
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Pod
 	for _, pod := range pods.Items {
-		resources = append(resources, ResourceInfo{
+		// 计算 Ready 状态
+		ready := calculatePodReady(&pod)
+		// 计算重启次数
+		restarts := calculatePodRestarts(&pod)
+
+		results = append(results, Pod{
 			Name:      pod.Name,
 			Namespace: pod.Namespace,
-			Kind:      "Pod",
 			Status:    getPodStatus(&pod),
+			Ready:     ready,
+			Restarts:  restarts,
 			Age:       pod.CreationTimestamp.String(),
 			Labels:    pod.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
+}
+
+// calculatePodReady 计算 Pod 的 Ready 状态
+func calculatePodReady(pod *corev1.Pod) string {
+	readyContainers := 0
+	totalContainers := len(pod.Spec.Containers)
+
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		if containerStatus.Ready {
+			readyContainers++
+		}
+	}
+
+	return fmt.Sprintf("%d/%d", readyContainers, totalContainers)
+}
+
+// calculatePodRestarts 计算 Pod 的重启次数
+func calculatePodRestarts(pod *corev1.Pod) int {
+	restarts := 0
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		restarts += int(containerStatus.RestartCount)
+	}
+	return restarts
 }
 
 // getPodStatus calculates a high-level status for a pod, similar to kubectl
@@ -188,7 +218,7 @@ func getPodStatus(pod *corev1.Pod) string {
 }
 
 // ListServices lists services in a namespace
-func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clusterName string) ([]Service, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -206,23 +236,39 @@ func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clust
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Service
 	for _, svc := range services.Items {
-		resources = append(resources, ResourceInfo{
+		// 格式化端口
+		ports := formatServicePorts(svc.Spec.Ports)
+
+		results = append(results, Service{
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
-			Kind:      "Service",
-			Status:    fmt.Sprintf("Type: %s", svc.Spec.Type),
+			Type:      string(svc.Spec.Type),
+			ClusterIP: svc.Spec.ClusterIP,
+			Ports:     ports,
 			Age:       svc.CreationTimestamp.String(),
 			Labels:    svc.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
+}
+
+// formatServicePorts 格式化服务端口
+func formatServicePorts(ports []corev1.ServicePort) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	var portStrs []string
+	for _, p := range ports {
+		portStrs = append(portStrs, fmt.Sprintf("%d/%s", p.Port, p.Protocol))
+	}
+	return strings.Join(portStrs, ", ")
 }
 
 // ListDeployments lists deployments in a namespace
-func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, clusterName string) ([]Deployment, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -240,20 +286,24 @@ func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, cl
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Deployment
 	for _, dep := range deployments.Items {
-		status := fmt.Sprintf("%d/%d", dep.Status.ReadyReplicas, dep.Status.Replicas)
-		resources = append(resources, ResourceInfo{
+		ready := fmt.Sprintf("%d/%d", dep.Status.ReadyReplicas, dep.Status.Replicas)
+		upToDate := fmt.Sprintf("%d", dep.Status.UpdatedReplicas)
+		available := fmt.Sprintf("%d", dep.Status.AvailableReplicas)
+
+		results = append(results, Deployment{
 			Name:      dep.Name,
 			Namespace: dep.Namespace,
-			Kind:      "Deployment",
-			Status:    status,
+			Ready:     ready,
+			UpToDate:  upToDate,
+			Available: available,
 			Age:       dep.CreationTimestamp.String(),
 			Labels:    dep.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
 }
 
 // GetResourceDetails gets detailed information about a specific resource
@@ -291,7 +341,7 @@ func (ro *ResourceOperations) GetResourceDetails(ctx context.Context, resourceTy
 }
 
 // ListResourcesByType lists resources of a specific type
-func (ro *ResourceOperations) ListResourcesByType(ctx context.Context, resourceType ResourceType, namespace, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) ListResourcesByType(ctx context.Context, resourceType ResourceType, namespace, clusterName string) (interface{}, error) {
 	switch resourceType {
 	case ResourceTypePods, ResourceTypePod:
 		return ro.ListPods(ctx, namespace, clusterName)
@@ -302,20 +352,22 @@ func (ro *ResourceOperations) ListResourcesByType(ctx context.Context, resourceT
 	case ResourceTypeNamespaces, ResourceTypeNamespace:
 		return ro.ListNamespaces(ctx, clusterName)
 	case ResourceTypeConfigMaps, ResourceTypeConfigMap:
-		return ro.listConfigMaps(ctx, namespace, clusterName)
+		return ro.ListConfigMaps(ctx, namespace, clusterName)
 	case ResourceTypeSecrets, ResourceTypeSecret:
 		return ro.listSecrets(ctx, namespace, clusterName)
 	case ResourceTypeNodes, ResourceTypeNode:
 		return ro.listNodes(ctx, clusterName)
 	case ResourceTypeEvents, ResourceTypeEvent:
 		return ro.listEvents(ctx, namespace, clusterName)
+	case ResourceTypeStatefulSets, ResourceTypeStatefulSet:
+		return ro.ListStatefulSets(ctx, namespace, clusterName)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resourceType)
 	}
 }
 
-// listConfigMaps lists configmaps in a namespace
-func (ro *ResourceOperations) listConfigMaps(ctx context.Context, namespace, clusterName string) ([]ResourceInfo, error) {
+// ListConfigMaps lists configmaps in a namespace
+func (ro *ResourceOperations) ListConfigMaps(ctx context.Context, namespace, clusterName string) ([]ConfigMap, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -333,19 +385,18 @@ func (ro *ResourceOperations) listConfigMaps(ctx context.Context, namespace, clu
 		return nil, fmt.Errorf("failed to list configmaps: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []ConfigMap
 	for _, cm := range configMaps.Items {
-		resources = append(resources, ResourceInfo{
+		results = append(results, ConfigMap{
 			Name:      cm.Name,
 			Namespace: cm.Namespace,
-			Kind:      "ConfigMap",
-			Status:    fmt.Sprintf("%d keys", len(cm.Data)),
+			DataCount: len(cm.Data),
 			Age:       cm.CreationTimestamp.String(),
 			Labels:    cm.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
 }
 
 // listSecrets lists secrets in a namespace
@@ -383,7 +434,7 @@ func (ro *ResourceOperations) listSecrets(ctx context.Context, namespace, cluste
 }
 
 // listNodes lists nodes in cluster
-func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string) ([]Node, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -401,7 +452,7 @@ func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string)
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Node
 	for _, node := range nodes.Items {
 		status := "Unknown"
 		for _, condition := range node.Status.Conditions {
@@ -415,20 +466,47 @@ func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string)
 			}
 		}
 
-		resources = append(resources, ResourceInfo{
-			Name:   node.Name,
-			Kind:   "Node",
-			Status: status,
-			Age:    node.CreationTimestamp.String(),
-			Labels: node.Labels,
+		// 提取节点角色
+		roles := extractNodeRoles(&node)
+
+		results = append(results, Node{
+			Name:    node.Name,
+			Status:  status,
+			Roles:   roles,
+			Version: node.Status.NodeInfo.KubeletVersion,
+			Age:     node.CreationTimestamp.String(),
+			Labels:  node.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
+}
+
+// extractNodeRoles 提取节点角色
+func extractNodeRoles(node *corev1.Node) string {
+	var roles []string
+	for k := range node.Labels {
+		if k == "node-role.kubernetes.io/master" || k == "node-role.kubernetes.io/control-plane" {
+			roles = append(roles, "master")
+		}
+		if k == "node-role.kubernetes.io/worker" || k == "node-role.kubernetes.io/compute" {
+			roles = append(roles, "worker")
+		}
+		if strings.HasPrefix(k, "node-role.kubernetes.io/") {
+			role := strings.TrimPrefix(k, "node-role.kubernetes.io/")
+			if role != "" && role != "master" && role != "control-plane" {
+				roles = append(roles, role)
+			}
+		}
+	}
+	if len(roles) == 0 {
+		return "<none>"
+	}
+	return strings.Join(roles, ",")
 }
 
 // listEvents lists events in a namespace
-func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, clusterName string) ([]ResourceInfo, error) {
+func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, clusterName string) ([]Event, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -446,18 +524,21 @@ func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, cluster
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	var resources []ResourceInfo
+	var results []Event
 	for _, event := range events.Items {
-		resources = append(resources, ResourceInfo{
-			Name:      event.Name,
-			Namespace: event.Namespace,
-			Kind:      "Event",
-			Status:    fmt.Sprintf("%s: %s", event.Type, event.Reason),
-			Age:       event.CreationTimestamp.String(),
+		results = append(results, Event{
+			Type:      event.Type,
+			Reason:    event.Reason,
+			Message:   event.Message,
+			Source:    event.Source.Component,
+			Count:     int(event.Count),
+			FirstSeen: event.FirstTimestamp.String(),
+			LastSeen:  event.LastTimestamp.String(),
+			Labels:    event.Labels,
 		})
 	}
 
-	return resources, nil
+	return results, nil
 }
 
 // GetSupportedResourceTypes returns all supported resource types
@@ -479,6 +560,8 @@ func (ro *ResourceOperations) GetSupportedResourceTypes() []ResourceType {
 		ResourceTypeNode,
 		ResourceTypeEvents,
 		ResourceTypeEvent,
+		ResourceTypeStatefulSets,
+		ResourceTypeStatefulSet,
 	}
 }
 
@@ -654,4 +737,39 @@ func (ro *ResourceOperations) CheckRBACPermission(ctx context.Context, verb, res
 	}
 
 	return response.Status.Allowed, nil
+}
+
+// ListStatefulSets lists statefulsets in a namespace
+func (ro *ResourceOperations) ListStatefulSets(ctx context.Context, namespace, clusterName string) ([]StatefulSet, error) {
+	var client *kubernetes.Clientset
+	var err error
+
+	if clusterName != "" {
+		client, err = ro.clusterManager.GetClientForCluster(clusterName)
+	} else {
+		client, err = ro.clusterManager.GetCurrentClient()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	statefulSets, err := client.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list statefulsets: %w", err)
+	}
+
+	var results []StatefulSet
+	for _, ss := range statefulSets.Items {
+		ready := fmt.Sprintf("%d/%d", ss.Status.ReadyReplicas, ss.Status.Replicas)
+
+		results = append(results, StatefulSet{
+			Name:      ss.Name,
+			Namespace: ss.Namespace,
+			Ready:     ready,
+			Age:       ss.CreationTimestamp.String(),
+			Labels:    ss.Labels,
+		})
+	}
+
+	return results, nil
 }

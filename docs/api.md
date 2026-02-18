@@ -5,7 +5,14 @@
 ## 目录
 
 - [数据结构](#数据结构)
-    - [ResourceInfo](#resourceinfo)
+    - [Pod](#pod)
+    - [Service](#service)
+    - [Deployment](#deployment)
+    - [Node](#node)
+    - [Namespace](#namespace)
+    - [ConfigMap](#configmap)
+    - [StatefulSet](#statefulset)
+    - [Event](#event)
 - [集群管理](#集群管理)
     - [get_cluster_status](#get_cluster_status)
     - [list_nodes](#list_nodes)
@@ -14,6 +21,8 @@
     - [list_pods](#list_pods)
     - [list_services](#list_services)
     - [list_deployments](#list_deployments)
+    - [list_configmaps](#list_configmaps)
+    - [list_statefulsets](#list_statefulsets)
     - [get_resource](#get_resource)
     - [get_resource_yaml](#get_resource_yaml)
 - [可观测性与调试](#可观测性与调试)
@@ -26,29 +35,125 @@
 
 ## 数据结构
 
-### ResourceInfo
+### Pod
 
-`ResourceInfo` 是所有列表工具返回的核心数据结构，包含 Kubernetes 资源的基本信息。
+`Pod` 包含 Kubernetes Pod 的详细信息。
 
 ```go
-type ResourceInfo struct {
-    Name      string            `json:"name"`
-    Namespace string            `json:"namespace,omitempty"`
-    Kind      string            `json:"kind"`
-    Status    string            `json:"status,omitempty"`
-    Age       string            `json:"age,omitempty"`
-    Labels    map[string]string `json:"labels,omitempty"`
+type Pod struct {
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	Status    string            `json:"status"`
+	Ready     string            `json:"ready"`
+	Restarts  int               `json:"restarts"`
+	Age       string            `json:"age"`
+	Labels    map[string]string `json:"labels,omitempty"`
 }
 ```
 
-| 字段 | 类型 | 描述 |
-|:---|:---|:---|
-| `name` | string | 资源名称 |
-| `namespace` | string | 命名空间（集群级别资源此项为空） |
-| `kind` | string | 资源类型（如 Pod, Service, Deployment 等） |
-| `status` | string | 资源状态（不同资源类型状态格式不同） |
-| `age` | string | 资源创建时间 |
-| `labels` | map | 资源标签 |
+### Service
+
+`Service` 包含 Kubernetes Service 的详细信息。
+
+```go
+type Service struct {
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	Type      string            `json:"type"`
+	ClusterIP string            `json:"cluster_ip"`
+	Ports     string            `json:"ports"`
+	Age       string            `json:"age"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+```
+
+### Deployment
+
+`Deployment` 包含 Kubernetes Deployment 的详细信息。
+
+```go
+type Deployment struct {
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	Ready     string            `json:"ready"`
+	UpToDate  string            `json:"up_to_date"`
+	Available string            `json:"available"`
+	Age       string            `json:"age"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+```
+
+### Node
+
+`Node` 包含 Kubernetes 节点的详细信息。
+
+```go
+type Node struct {
+	Name    string            `json:"name"`
+	Status  string            `json:"status"`
+	Roles   string            `json:"roles"`
+	Version string            `json:"version"`
+	Age     string            `json:"age"`
+	Labels  map[string]string `json:"labels,omitempty"`
+}
+```
+
+### Namespace
+
+`Namespace` 包含 Kubernetes 命名空间的详细信息。
+
+```go
+type Namespace struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Age    string `json:"age"`
+}
+```
+
+### ConfigMap
+
+`ConfigMap` 包含 Kubernetes ConfigMap 的基本信息。
+
+```go
+type ConfigMap struct {
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	DataCount int               `json:"data_count"`
+	Age       string            `json:"age"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+```
+
+### StatefulSet
+
+`StatefulSet` 包含 Kubernetes StatefulSet 的详细信息。
+
+```go
+type StatefulSet struct {
+	Name      string            `json:"name"`
+	Namespace string            `json:"namespace"`
+	Ready     string            `json:"ready"`
+	Age       string            `json:"age"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+```
+
+### Event
+
+`Event` 包含 Kubernetes 事件的信息。
+
+```go
+type Event struct {
+	Type      string            `json:"type"`
+	Reason    string            `json:"reason"`
+	Message   string            `json:"message"`
+	Source    string            `json:"source"`
+	Count     int               `json:"count"`
+	FirstSeen string            `json:"first_seen"`
+	LastSeen  string            `json:"last_seen"`
+	Labels    map[string]string `json:"labels,omitempty"`
+}
+```
 
 ---
 
@@ -75,16 +180,6 @@ type ResourceInfo struct {
 }
 ```
 
-#### 示例代码 (MCP Client)
-
-```go
-result, err := client.CallTool(ctx, "get_cluster_status", nil)
-if err != nil {
-    log.Fatal(err)
-}
-fmt.Println(result.Content[0].Text)
-```
-
 ### list_nodes
 
 列出集群中的所有节点及其状态。
@@ -98,44 +193,12 @@ fmt.Println(result.Content[0].Text)
 
 #### 返回值
 
-返回 `NodesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
+返回 `NodesResult` 对象，包含 `Node` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "nodes": [
-    {
-      "name": "node-1",
-      "kind": "Node",
-      "status": "Ready",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "kubernetes.io/hostname": "node-1",
-        "node-role.kubernetes.io/master": ""
-      }
-    },
-    {
-      "name": "node-2",
-      "kind": "Node",
-      "status": "Ready",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "kubernetes.io/hostname": "node-2"
-      }
-    }
-  ]
+  "nodes": "[{\"name\":\"node-1\",\"status\":\"Ready\",\"roles\":\"control-plane\",\"version\":\"v1.28.0\",\"age\":\"10d\",\"labels\":{\"kubernetes.io/hostname\":\"node-1\"}}]"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-result, err := client.CallTool(ctx, "list_nodes", nil)
-if err != nil {
-    log.Fatal(err)
-}
-// 解析 JSON
-var nodes []k8s.ResourceInfo
-json.Unmarshal([]byte(result.Content[0].Text), &nodes)
 ```
 
 ### list_namespaces
@@ -151,37 +214,12 @@ json.Unmarshal([]byte(result.Content[0].Text), &nodes)
 
 #### 返回值
 
-返回 `NamespacesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
+返回 `NamespacesResult` 对象，包含 `Namespace` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "namespaces": [
-    {
-      "name": "default",
-      "kind": "Namespace",
-      "status": "Active",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "kubernetes.io/metadata.name": "default"
-      }
-    },
-    {
-      "name": "kube-system",
-      "kind": "Namespace",
-      "status": "Active",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "kubernetes.io/metadata.name": "kube-system"
-      }
-    }
-  ]
+  "namespaces": "[{\"name\":\"default\",\"status\":\"Active\",\"age\":\"10d\"},{\"name\":\"kube-system\",\"status\":\"Active\",\"age\":\"10d\"}]"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-result, err := client.CallTool(ctx, "list_namespaces", nil)
 ```
 
 ---
@@ -203,42 +241,12 @@ result, err := client.CallTool(ctx, "list_namespaces", nil)
 
 #### 返回值
 
-返回 `PodsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
+返回 `PodsResult` 对象，包含 `Pod` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "pods": [
-    {
-      "name": "nginx-pod",
-      "namespace": "default",
-      "kind": "Pod",
-      "status": "Running",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "app": "nginx"
-      }
-    },
-    {
-      "name": "redis-pod",
-      "namespace": "default",
-      "kind": "Pod",
-      "status": "Running",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "app": "redis"
-      }
-    }
-  ]
+  "pods": "[{\"name\":\"nginx-pod\",\"namespace\":\"default\",\"status\":\"Running\",\"ready\":\"1/1\",\"restarts\":0,\"age\":\"10d\",\"labels\":{\"app\":\"nginx\"}}]"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "list_pods", args)
 ```
 
 ### list_services
@@ -256,43 +264,12 @@ result, err := client.CallTool(ctx, "list_pods", args)
 
 #### 返回值
 
-返回 `ServicesResult` 对象，包含 `ResourceInfo` JSON 数组字符串。
+返回 `ServicesResult` 对象，包含 `Service` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "services": [
-    {
-      "name": "kubernetes",
-      "namespace": "default",
-      "kind": "Service",
-      "status": "Type: ClusterIP",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "component": "apiserver",
-        "provider": "kubernetes"
-      }
-    },
-    {
-      "name": "nginx-service",
-      "namespace": "default",
-      "kind": "Service",
-      "status": "Type: LoadBalancer",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "app": "nginx"
-      }
-    }
-  ]
+  "services": "[{\"name\":\"nginx-svc\",\"namespace\":\"default\",\"type\":\"ClusterIP\",\"cluster_ip\":\"10.96.0.10\",\"ports\":\"80/TCP\",\"age\":\"10d\",\"labels\":{\"app\":\"nginx\"}}]"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "list_services", args)
 ```
 
 ### list_deployments
@@ -310,42 +287,58 @@ result, err := client.CallTool(ctx, "list_services", args)
 
 #### 返回值
 
-返回 `DeploymentsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。状态格式为 `就绪副本数/总副本数`。
+返回 `DeploymentsResult` 对象，包含 `Deployment` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "deployments": [
-    {
-      "name": "nginx-deployment",
-      "namespace": "default",
-      "kind": "Deployment",
-      "status": "3/3",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "app": "nginx"
-      }
-    },
-    {
-      "name": "redis-deployment",
-      "namespace": "default",
-      "kind": "Deployment",
-      "status": "1/1",
-      "age": "2024-01-01 00:00:00 +0000 UTC",
-      "labels": {
-        "app": "redis"
-      }
-    }
-  ]
+  "deployments": "[{\"name\":\"nginx-deploy\",\"namespace\":\"default\",\"ready\":\"3/3\",\"up_to_date\":\"3\",\"available\":\"3\",\"age\":\"10d\",\"labels\":{\"app\":\"nginx\"}}]"
 }
 ```
 
-#### 示例代码 (MCP Client)
+### list_configmaps
 
-```go
-args := map[string]interface{}{
-    "namespace": "default",
+列出指定命名空间中的 ConfigMap。
+
+- **函数签名**: `handleListConfigMaps`
+- **描述**: List configmaps in a namespace
+
+#### 参数
+
+| 参数名 | 类型 | 必填 | 描述 |
+|:---|:---|:---|:---|
+| `namespace` | string | 是 | 命名空间名称 |
+
+#### 返回值
+
+返回 `ConfigMapsResult` 对象，包含 `ConfigMap` 对象的 JSON 数组字符串。
+
+```json
+{
+  "configmaps": "[{\"name\":\"kube-root-ca.crt\",\"namespace\":\"default\",\"data_count\":1,\"age\":\"10d\"}]"
 }
-result, err := client.CallTool(ctx, "list_deployments", args)
+```
+
+### list_statefulsets
+
+列出指定命名空间中的 StatefulSet。
+
+- **函数签名**: `handleListStatefulSets`
+- **描述**: List statefulsets in a namespace
+
+#### 参数
+
+| 参数名 | 类型 | 必填 | 描述 |
+|:---|:---|:---|:---|
+| `namespace` | string | 是 | 命名空间名称 |
+
+#### 返回值
+
+返回 `StatefulSetsResult` 对象，包含 `StatefulSet` 对象的 JSON 数组字符串。
+
+```json
+{
+  "statefulsets": "[{\"name\":\"web\",\"namespace\":\"default\",\"ready\":\"3/3\",\"age\":\"10d\",\"labels\":{\"app\":\"nginx\"}}]"
+}
 ```
 
 ### get_resource
@@ -373,17 +366,6 @@ result, err := client.CallTool(ctx, "list_deployments", args)
 }
 ```
 
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "resource_type": "pods",
-    "name": "nginx-pod",
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "get_resource", args)
-```
-
 ### get_resource_yaml
 
 获取资源的完整 YAML 定义。Secret 数据会被脱敏。
@@ -409,17 +391,6 @@ result, err := client.CallTool(ctx, "get_resource", args)
 }
 ```
 
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "resource_type": "deployments",
-    "name": "nginx-deployment",
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "get_resource_yaml", args)
-```
-
 ---
 
 ## 可观测性与调试
@@ -439,36 +410,12 @@ result, err := client.CallTool(ctx, "get_resource_yaml", args)
 
 #### 返回值
 
-返回 `EventsResult` 对象，包含 `ResourceInfo` JSON 数组字符串。状态格式为 `事件类型: 原因`。
+返回 `EventsResult` 对象，包含 `Event` 对象的 JSON 数组字符串。
 
 ```json
 {
-  "events": [
-    {
-      "name": "nginx-pod.12345678",
-      "namespace": "default",
-      "kind": "Event",
-      "status": "Normal: Scheduled",
-      "age": "2024-01-01 00:00:00 +0000 UTC"
-    },
-    {
-      "name": "nginx-pod.87654321",
-      "namespace": "default",
-      "kind": "Event",
-      "status": "Normal: Pulled",
-      "age": "2024-01-01 00:00:01 +0000 UTC"
-    }
-  ]
+  "events": "[{\"type\":\"Normal\",\"reason\":\"Scheduled\",\"message\":\"Successfully assigned default/nginx-pod to node-1\",\"source\":\"default-scheduler\",\"count\":1,\"first_seen\":\"2024-01-01T00:00:00Z\",\"last_seen\":\"2024-01-01T00:00:00Z\"}]"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "get_events", args)
 ```
 
 ### get_pod_logs
@@ -499,17 +446,6 @@ result, err := client.CallTool(ctx, "get_events", args)
 }
 ```
 
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "pod_name": "nginx-pod",
-    "namespace": "default",
-    "tail_lines": 50,
-}
-result, err := client.CallTool(ctx, "get_pod_logs", args)
-```
-
 ---
 
 ## 安全
@@ -538,15 +474,4 @@ result, err := client.CallTool(ctx, "get_pod_logs", args)
   "allowed": true,
   "reason": "Permission granted"
 }
-```
-
-#### 示例代码 (MCP Client)
-
-```go
-args := map[string]interface{}{
-    "verb": "delete",
-    "resource": "pods",
-    "namespace": "default",
-}
-result, err := client.CallTool(ctx, "check_rbac_permission", args)
 ```
