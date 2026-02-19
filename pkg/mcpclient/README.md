@@ -58,6 +58,33 @@ func main() {
 }
 ```
 
+### 结果转换
+
+可以使用 `DecodeResult` 方法将工具调用的结果转换为具体的结构体：
+
+```go
+import (
+    "github.com/AceDarkknight/k8s-mcp/pkg/types"
+)
+
+// 调用 get_pod 工具
+result, err := client.CallTool(ctx, "get_pod", map[string]interface{}{
+    "namespace": "default",
+    "pod_name":  "my-pod",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// 转换结果为 types.Pod 结构体
+pod, err := mcpclient.DecodeResult[types.Pod](result)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Pod Name: %s, Status: %s\n", pod.Name, pod.Status)
+```
+
 ### 使用环境变量
 
 ```go
@@ -101,6 +128,7 @@ client, err := mcpclient.NewClient(config,
 - `Close() error`: 关闭连接
 - `ListTools(ctx context.Context) ([]*mcp.Tool, error)`: 获取工具列表
 - `CallTool(ctx context.Context, toolName string, args map[string]interface{}) (*mcp.CallToolResult, error)`: 调用工具
+- `DecodeResult[T any](result *mcp.CallToolResult) (*T, error)`: 将工具结果解码为指定的结构体
 
 ### Options
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/AceDarkknight/k8s-mcp/pkg/types"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,7 +61,7 @@ func NewResourceOperations(cm *ClusterManager) *ResourceOperations {
 }
 
 // ListNamespaces lists all namespaces in current cluster
-func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName string) ([]Namespace, error) {
+func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName string) ([]types.Namespace, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -78,9 +79,9 @@ func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName st
 		return nil, fmt.Errorf("failed to list namespaces: %w", err)
 	}
 
-	var results []Namespace
+	var results []types.Namespace
 	for _, ns := range namespaces.Items {
-		results = append(results, Namespace{
+		results = append(results, types.Namespace{
 			Name:   ns.Name,
 			Status: string(ns.Status.Phase),
 			Age:    ns.CreationTimestamp.String(),
@@ -91,7 +92,7 @@ func (ro *ResourceOperations) ListNamespaces(ctx context.Context, clusterName st
 }
 
 // ListPods lists pods in a namespace
-func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterName string) ([]Pod, error) {
+func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterName string) ([]types.Pod, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -109,14 +110,14 @@ func (ro *ResourceOperations) ListPods(ctx context.Context, namespace, clusterNa
 		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 
-	var results []Pod
+	var results []types.Pod
 	for _, pod := range pods.Items {
 		// 计算 Ready 状态
 		ready := calculatePodReady(&pod)
 		// 计算重启次数
 		restarts := calculatePodRestarts(&pod)
 
-		results = append(results, Pod{
+		results = append(results, types.Pod{
 			Name:      pod.Name,
 			Namespace: pod.Namespace,
 			Status:    getPodStatus(&pod),
@@ -218,7 +219,7 @@ func getPodStatus(pod *corev1.Pod) string {
 }
 
 // ListServices lists services in a namespace
-func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clusterName string) ([]Service, error) {
+func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clusterName string) ([]types.Service, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -236,12 +237,12 @@ func (ro *ResourceOperations) ListServices(ctx context.Context, namespace, clust
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
 
-	var results []Service
+	var results []types.Service
 	for _, svc := range services.Items {
 		// 格式化端口
 		ports := formatServicePorts(svc.Spec.Ports)
 
-		results = append(results, Service{
+		results = append(results, types.Service{
 			Name:      svc.Name,
 			Namespace: svc.Namespace,
 			Type:      string(svc.Spec.Type),
@@ -268,7 +269,7 @@ func formatServicePorts(ports []corev1.ServicePort) string {
 }
 
 // ListDeployments lists deployments in a namespace
-func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, clusterName string) ([]Deployment, error) {
+func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, clusterName string) ([]types.Deployment, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -286,13 +287,13 @@ func (ro *ResourceOperations) ListDeployments(ctx context.Context, namespace, cl
 		return nil, fmt.Errorf("failed to list deployments: %w", err)
 	}
 
-	var results []Deployment
+	var results []types.Deployment
 	for _, dep := range deployments.Items {
 		ready := fmt.Sprintf("%d/%d", dep.Status.ReadyReplicas, dep.Status.Replicas)
 		upToDate := fmt.Sprintf("%d", dep.Status.UpdatedReplicas)
 		available := fmt.Sprintf("%d", dep.Status.AvailableReplicas)
 
-		results = append(results, Deployment{
+		results = append(results, types.Deployment{
 			Name:      dep.Name,
 			Namespace: dep.Namespace,
 			Ready:     ready,
@@ -367,7 +368,7 @@ func (ro *ResourceOperations) ListResourcesByType(ctx context.Context, resourceT
 }
 
 // ListConfigMaps lists configmaps in a namespace
-func (ro *ResourceOperations) ListConfigMaps(ctx context.Context, namespace, clusterName string) ([]ConfigMap, error) {
+func (ro *ResourceOperations) ListConfigMaps(ctx context.Context, namespace, clusterName string) ([]types.ConfigMap, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -385,9 +386,9 @@ func (ro *ResourceOperations) ListConfigMaps(ctx context.Context, namespace, clu
 		return nil, fmt.Errorf("failed to list configmaps: %w", err)
 	}
 
-	var results []ConfigMap
+	var results []types.ConfigMap
 	for _, cm := range configMaps.Items {
-		results = append(results, ConfigMap{
+		results = append(results, types.ConfigMap{
 			Name:      cm.Name,
 			Namespace: cm.Namespace,
 			DataCount: len(cm.Data),
@@ -434,7 +435,7 @@ func (ro *ResourceOperations) listSecrets(ctx context.Context, namespace, cluste
 }
 
 // listNodes lists nodes in cluster
-func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string) ([]Node, error) {
+func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string) ([]types.Node, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -452,7 +453,7 @@ func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string)
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
 
-	var results []Node
+	var results []types.Node
 	for _, node := range nodes.Items {
 		status := "Unknown"
 		for _, condition := range node.Status.Conditions {
@@ -469,7 +470,7 @@ func (ro *ResourceOperations) listNodes(ctx context.Context, clusterName string)
 		// 提取节点角色
 		roles := extractNodeRoles(&node)
 
-		results = append(results, Node{
+		results = append(results, types.Node{
 			Name:    node.Name,
 			Status:  status,
 			Roles:   roles,
@@ -506,7 +507,7 @@ func extractNodeRoles(node *corev1.Node) string {
 }
 
 // listEvents lists events in a namespace
-func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, clusterName string) ([]Event, error) {
+func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, clusterName string) ([]types.Event, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -524,9 +525,9 @@ func (ro *ResourceOperations) listEvents(ctx context.Context, namespace, cluster
 		return nil, fmt.Errorf("failed to list events: %w", err)
 	}
 
-	var results []Event
+	var results []types.Event
 	for _, event := range events.Items {
-		results = append(results, Event{
+		results = append(results, types.Event{
 			Type:      event.Type,
 			Reason:    event.Reason,
 			Message:   event.Message,
@@ -740,7 +741,7 @@ func (ro *ResourceOperations) CheckRBACPermission(ctx context.Context, verb, res
 }
 
 // ListStatefulSets lists statefulsets in a namespace
-func (ro *ResourceOperations) ListStatefulSets(ctx context.Context, namespace, clusterName string) ([]StatefulSet, error) {
+func (ro *ResourceOperations) ListStatefulSets(ctx context.Context, namespace, clusterName string) ([]types.StatefulSet, error) {
 	var client *kubernetes.Clientset
 	var err error
 
@@ -758,11 +759,11 @@ func (ro *ResourceOperations) ListStatefulSets(ctx context.Context, namespace, c
 		return nil, fmt.Errorf("failed to list statefulsets: %w", err)
 	}
 
-	var results []StatefulSet
+	var results []types.StatefulSet
 	for _, ss := range statefulSets.Items {
 		ready := fmt.Sprintf("%d/%d", ss.Status.ReadyReplicas, ss.Status.Replicas)
 
-		results = append(results, StatefulSet{
+		results = append(results, types.StatefulSet{
 			Name:      ss.Name,
 			Namespace: ss.Namespace,
 			Ready:     ready,

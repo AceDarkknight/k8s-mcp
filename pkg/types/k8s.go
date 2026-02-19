@@ -1,4 +1,4 @@
-package k8s
+package types
 
 // Namespace 命名空间信息
 type Namespace struct {
